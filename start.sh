@@ -51,12 +51,12 @@ if [ -f "$PROJECT_DIR/agents/requirements.txt" ]; then
     pip install -r "$PROJECT_DIR/agents/requirements.txt" --quiet
 fi
 
-# Check if backend .env exists
-if [ ! -f "$BACKEND_DIR/.env" ]; then
-    echo "Warning: backend/.env not found"
-    if [ -f "$BACKEND_DIR/.env.example" ]; then
+# Check if .env exists at project root
+if [ ! -f "$PROJECT_DIR/.env" ]; then
+    echo "Warning: .env not found at project root"
+    if [ -f "$PROJECT_DIR/.env.example" ]; then
         echo "Creating .env from .env.example..."
-        cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+        cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
     fi
 fi
 

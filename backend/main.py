@@ -16,10 +16,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables BEFORE importing logger
-load_dotenv()
+# Load from project root .env file
+project_root = Path(__file__).parent.parent
+load_dotenv(project_root / ".env")
 
 # Add parent directory to path for tools import
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(project_root))
 from tools.logger import logger
 
 # Suppress third-party logging noise

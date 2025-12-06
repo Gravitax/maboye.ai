@@ -6,6 +6,7 @@ with LLM backends.
 """
 
 from agents.agent import Agent, AgentError, AgentInputError, AgentOutputError
+from agents.agent_code import AgentCode
 from LLM import LLM, LLMError, LLMConnectionError, LLMAPIError, LLMConfig
 from agents.config import AgentConfig
 from agents.types import (
@@ -22,6 +23,7 @@ from agents.types import (
 __all__ = [
     # Core classes
     "Agent",
+    "AgentCode",
     "LLM",
     # Configuration
     "AgentConfig",
