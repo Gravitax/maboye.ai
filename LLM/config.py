@@ -18,7 +18,7 @@ class LLMConfig:
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     timeout: int = 30
-    max_retries: int = 3
+    max_retries: int = 1
     retry_delay: float = 1.0
 
     def __post_init__(self):

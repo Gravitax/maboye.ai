@@ -12,7 +12,7 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from tools.logger import logger
+from srcs.logger import logger
 from LLM import LLM
 from agents.config import AgentConfig
 from agents.types import AgentInput, AgentOutput, Message
@@ -57,38 +57,7 @@ class Agent:
         self._config = config or AgentConfig()
         self._input: Optional[AgentInput] = None
         self._output: Optional[AgentOutput] = None
-        self._history: List[Dict[str, Any]] = []
         self._execution_count = 0
-
-        if self._config.enable_logging:
-            logger.info("AGENT", "Agent initialized", {
-                "name": self._config.name,
-                "max_history": self._config.max_history
-            })
-
-    def set_llm(self, llm: LLM):
-        """
-        Set LLM instance
-
-        Args:
-            llm: New LLM instance
-        """
-        if not isinstance(llm, LLM):
-            raise TypeError("llm must be instance of LLM")
-
-        self._llm = llm
-
-        if self._config.enable_logging:
-            logger.info("AGENT", "LLM instance updated", {"name": self._config.name})
-
-    def get_llm(self) -> LLM:
-        """
-        Get current LLM instance
-
-        Returns:
-            Current LLM instance
-        """
-        return self._llm
 
     def set_input(self, input_data: Union[str, Dict[str, Any], AgentInput]):
         """
@@ -109,12 +78,10 @@ class Agent:
         else:
             raise AgentInputError(f"Invalid input type: {type(input_data)}")
 
-        if self._config.validate_inputs:
-            self._validate_input(agent_input)
-
+        self._validate_input(agent_input)
         self._input = agent_input
 
-        if self._config.enable_logging and self._config.log_inputs:
+        if self._config.enable_logging:
             logger.info("AGENT", "Input set", {
                 "name": self._config.name,
                 "prompt_length": len(agent_input.prompt)
@@ -128,41 +95,6 @@ class Agent:
             Current input or None
         """
         return self._input
-
-    def modify_input(
-        self,
-        prompt: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Modify current input
-
-        Args:
-            prompt: New prompt (keeps existing if None)
-            context: New context (keeps existing if None)
-            metadata: New metadata (keeps existing if None)
-
-        Raises:
-            AgentError: No input set
-        """
-        if not self._input:
-            raise AgentError("No input set to modify")
-
-        if prompt is not None:
-            self._input.prompt = prompt
-
-        if context is not None:
-            self._input.context = context
-
-        if metadata is not None:
-            self._input.metadata = metadata
-
-        if self._config.validate_inputs:
-            self._validate_input(self._input)
-
-        if self._config.enable_logging:
-            logger.debug("AGENT", "Input modified", {"name": self._config.name})
 
     def _validate_input(self, input_data: AgentInput):
         """
@@ -226,14 +158,6 @@ class Agent:
 
             response_text = response.choices[0].message.content
 
-            self._add_to_history({
-                "timestamp": datetime.now().isoformat(),
-                "execution": self._execution_count,
-                "input": self._input.prompt,
-                "response": response_text,
-                "tokens": response.usage.total_tokens
-            })
-
             return response_text
 
         except Exception as e:
@@ -287,18 +211,6 @@ class Agent:
             lines.append(f"{key}: {value}")
         return "\n".join(lines)
 
-    def get_last_llm_response(self) -> Optional[str]:
-        """
-        Get last response from LLM
-
-        Returns:
-            Last response text or None
-        """
-        if not self._history:
-            return None
-
-        return self._history[-1].get("response")
-
     def set_output(self, response: str, success: bool = True, error: Optional[str] = None):
         """
         Set agent output
@@ -323,10 +235,9 @@ class Agent:
             error=error
         )
 
-        if self._config.validate_outputs:
-            self._validate_output(self._output)
+        self._validate_output(self._output)
 
-        if self._config.enable_logging and self._config.log_outputs:
+        if self._config.enable_logging:
             logger.info("AGENT", "Output set", {
                 "name": self._config.name,
                 "success": success,
@@ -359,97 +270,3 @@ class Agent:
             raise AgentOutputError(
                 f"Response exceeds max length: {len(output.response)} > {self._config.max_output_length}"
             )
-
-    def run(
-        self,
-        input_data: Union[str, Dict[str, Any], AgentInput],
-        **llm_kwargs
-    ) -> AgentOutput:
-        """
-        Execute complete agent workflow
-
-        Args:
-            input_data: Agent input
-            **llm_kwargs: Additional LLM parameters
-
-        Returns:
-            Agent output
-
-        Raises:
-            AgentError: Execution failed
-        """
-        try:
-            self.set_input(input_data)
-            response = self.query_llm(**llm_kwargs)
-            self.set_output(response, success=True)
-            return self._output
-
-        except Exception as e:
-            error_msg = str(e)
-            self.set_output(
-                response="",
-                success=False,
-                error=error_msg
-            )
-
-            if self._config.enable_logging:
-                logger.error("AGENT", "Execution failed", {
-                    "name": self._config.name,
-                    "error": error_msg
-                })
-
-            raise AgentError(f"Agent execution failed: {e}")
-
-    def _add_to_history(self, entry: Dict[str, Any]):
-        """
-        Add entry to execution history
-
-        Args:
-            entry: History entry
-        """
-        self._history.append(entry)
-
-        if len(self._history) > self._config.max_history:
-            self._history.pop(0)
-
-    def get_history(self) -> List[Dict[str, Any]]:
-        """
-        Get execution history
-
-        Returns:
-            List of history entries
-        """
-        return self._history.copy()
-
-    def clear_history(self):
-        """Clear execution history"""
-        self._history.clear()
-
-        if self._config.enable_logging:
-            logger.debug("AGENT", "History cleared", {"name": self._config.name})
-
-    def reset(self):
-        """Reset agent state"""
-        self._input = None
-        self._output = None
-        self._history.clear()
-        self._execution_count = 0
-
-        if self._config.enable_logging:
-            logger.info("AGENT", "Agent reset", {"name": self._config.name})
-
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Get agent statistics
-
-        Returns:
-            Statistics dictionary
-        """
-        return {
-            "name": self._config.name,
-            "executions": self._execution_count,
-            "history_size": len(self._history),
-            "has_input": self._input is not None,
-            "has_output": self._output is not None,
-            "llm_requests": self._llm.get_request_count()
-        }

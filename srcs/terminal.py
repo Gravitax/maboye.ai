@@ -10,7 +10,7 @@ from typing import Optional, Callable, Dict
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from tools.logger import logger
+from srcs.logger import logger
 
 
 class Terminal:
@@ -167,15 +167,6 @@ class Terminal:
             print()
             logger.info("TERMINAL", "Interrupted by user")
             return None
-
-    def print(self, message: str):
-        """
-        Print message to terminal
-
-        Args:
-            message: Message to print
-        """
-        print(message)
 
     def print_header(self, title: str):
         """

@@ -14,7 +14,7 @@ import time
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from tools.logger import logger
+from srcs.logger import logger
 
 
 class ShellError(Exception):

@@ -20,9 +20,9 @@ from dotenv import load_dotenv
 project_root = Path(__file__).resolve().parent.parent
 load_dotenv(project_root / ".env")
 
-# Add parent directory to path for tools import
+# Add parent directory to path for srcs import
 sys.path.insert(0, str(project_root))
-from tools.logger import logger
+from srcs.logger import logger
 
 # Suppress third-party logging noise
 logging.getLogger("uvicorn").setLevel(logging.WARNING)

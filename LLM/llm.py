@@ -15,7 +15,7 @@ from urllib3.util.retry import Retry
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from tools.logger import logger
+from srcs.logger import logger
 from LLM.types import (
     Message,
     ChatCompletionRequest,

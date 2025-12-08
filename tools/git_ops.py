@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from tools.shell import run_command, ShellError, CommandExecutionError
-from tools.logger import logger
+from srcs.logger import logger
 
 
 class GitError(Exception):

@@ -5,7 +5,7 @@ Provides configurable logging with console and file output.
 Supports log levels, rotation, and environment-based configuration.
 
 Usage:
-    from tools.logger import logger
+    from srcs.logger import logger
     logger.info('STARTUP', 'Server started')
     logger.error('API', 'Request failed', {'code': 500})
 """

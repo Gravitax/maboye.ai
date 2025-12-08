@@ -68,14 +68,16 @@ flowchart TD
 
 ## Core Components
 
-### 1. CLI Interface
+### 1. CLI Interface => tools/terminal.py
 
 Entry point for user interaction via terminal.
 
 **Responsibilities:**
 - Parse user commands and arguments
+<!--
 - Initialize session with configuration
 - Handle authentication and permissions
+-->
 - Display formatted output and progress
 
 **Key Features:**
@@ -84,7 +86,7 @@ Entry point for user interaction via terminal.
 - Streaming response display
 - Error handling and user feedback
 
-### 2. Session Manager
+### 2. Session Manager => tools/orchestrator.py
 
 Orchestrates the entire workflow for a single user request.
 
@@ -101,7 +103,7 @@ Orchestrates the entire workflow for a single user request.
 - Configuration (model, temperature, token limits)
 - Execution context (environment variables, paths)
 
-### 3. Context Assembly
+### 3. Context Assembly => tools/context.py
 
 Gathers relevant information to provide to the LLM.
 
