@@ -7,7 +7,7 @@ LLM querying, and output generation.
 
 import sys
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
 # Add parent directory to path for imports
@@ -90,7 +90,7 @@ class Agent:
         """
         return self._llm
 
-    def set_input(self, input_data: str | Dict[str, Any] | AgentInput):
+    def set_input(self, input_data: Union[str, Dict[str, Any], AgentInput]):
         """
         Set agent input
 
@@ -362,7 +362,7 @@ class Agent:
 
     def run(
         self,
-        input_data: str | Dict[str, Any] | AgentInput,
+        input_data: Union[str, Dict[str, Any], AgentInput],
         **llm_kwargs
     ) -> AgentOutput:
         """

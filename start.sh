@@ -74,13 +74,13 @@ if [ ! -z "$PID_ON_PORT" ]; then
     sleep 1
 fi
 
-# Start backend server in background (redirect output to log)
+# Start backend server in background
 echo "Starting backend server..."
 cd "$BACKEND_DIR"
-nohup python main.py > "$PROJECT_DIR/backend.log" 2>&1 &
+nohup python main.py > /dev/null 2>&1 &
 BACKEND_PID=$!
 echo "Backend server started (PID: $BACKEND_PID)"
-echo "Backend logs: $PROJECT_DIR/backend.log"
+echo "Backend logs: $BACKEND_DIR/Logs/"
 
 # Wait for backend to be ready
 echo "Waiting for backend to start..."
@@ -89,7 +89,7 @@ sleep 3
 # Check if backend is running
 if ! ps -p $BACKEND_PID > /dev/null 2>&1; then
     echo "Error: Backend server failed to start"
-    echo "Check backend.log for details"
+    echo "Check logs in $BACKEND_DIR/Logs/ for details"
     exit 1
 fi
 

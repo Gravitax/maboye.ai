@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 # Load environment variables BEFORE importing logger
 # Load from project root .env file
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).resolve().parent.parent
 load_dotenv(project_root / ".env")
 
 # Add parent directory to path for tools import

@@ -8,7 +8,7 @@ retries, and logging.
 import sys
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -59,7 +59,7 @@ class LLM:
         """
         self.config = config or LLMConfig()
         self._session = self._create_session()
-        self._last_response: Optional[ChatCompletionResponse | CompletionResponse] = None
+        self._last_response: Optional[Union[ChatCompletionResponse, CompletionResponse]] = None
         self._request_count = 0
 
         logger.info("LLM", "LLM wrapper initialized", {
@@ -205,7 +205,7 @@ class LLM:
 
     def completion(
         self,
-        prompt: str | List[str],
+        prompt: Union[str, List[str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         **kwargs
@@ -277,7 +277,7 @@ class LLM:
 
         return response
 
-    def get_last_response(self) -> Optional[ChatCompletionResponse | CompletionResponse]:
+    def get_last_response(self) -> Optional[Union[ChatCompletionResponse, CompletionResponse]]:
         """
         Get last response from LLM
 

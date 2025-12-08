@@ -27,8 +27,8 @@ class LogConfig:
         self.log_console = self._parse_bool(os.getenv('LOG_CONSOLE', 'true'))
         self.log_file = self._parse_bool(os.getenv('LOG_FILE', 'true'))
 
-        # Default to ./Logs at project root
-        default_log_dir = str(Path(__file__).parent.parent / 'Logs')
+        # Default to ./Logs relative to current working directory
+        default_log_dir = str(Path.cwd() / 'Logs')
         self.log_dir = os.getenv('LOG_DIR', default_log_dir)
 
         self.max_log_size = int(os.getenv('LOG_MAX_SIZE', str(10 * 1024 * 1024)))
@@ -126,7 +126,7 @@ class StructuredLogger:
 
             # Create new log file for each run
             timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            log_file = log_dir / f'app-{timestamp}.log'
+            log_file = log_dir / f'log-{timestamp}.log'
 
             file_handler = logging.FileHandler(
                 log_file,
@@ -224,8 +224,8 @@ class StructuredLogger:
         """Get current log file path"""
         if not self.config.log_file:
             return None
-        timestamp = datetime.now().strftime('%Y-%m-%d')
-        return str(Path(self.config.log_dir) / f'backend-{timestamp}.log')
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        return str(Path(self.config.log_dir) / f'log-{timestamp}.log')
 
 
 # Global configuration
