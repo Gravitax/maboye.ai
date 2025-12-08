@@ -4,40 +4,33 @@ Complete step-by-step plan to build a Claude Code-like agent system.
 
 ---
 
-il faut creer orchestrator.py
+implementer l'enumType {
+    lambda,
+    code,
+    function,
+    text_analyse
+}
+dans agent query return type lambda par defaut
 
-la classe orchestrator est une classe qui manage l'utilisation de different agents
-
-elle prend un input issu de la classe terminal, le fait traiter par plusieurs agents, et sort un resultat a output sur le terminal
-
-
-il prend la query user en input
-{
-    il la fait reformater par agents/agent_queries.py
+modifier la gestion de la memoire pour respecter ce format {
+    memoryType, enumType, id, rawString, embedString
 }
 
-il utilise l'agent_context.py pour creer un context a envoyer au llm
-{
-    l'agent utilisera la memory et la query pour creer le contexte
-}
+trouver une fonction pour embed sans passer par un llm pour reduire le cout en token
 
-il utilise l'agent_code.py pour executer la liste d'instructions recu du llm
-{
-    le llm envoit une liste de commandes a executer et c'est cet agent qui va le faire
-}
+associer des mots clefs au type pour faire une comparaison vectorielle avec les chunks de memoire
 
-il utilise la classe memory.py pour stocker:
-- les queries
-- les contexts
-- les etapes d'executions
-- les resultats d'executions
-{
-    cette classe permet de gerer un historique sur plusieurs elements
-    il faut une classe mere
-    et des enfants qui en herite pour chaque type de memoire (queries, context, etc...) (tout dans memory.py)
-    la classe gere le stockage des data aux bons endroits et renvoit l'historique demander
+implementer la recherche en memoire: comparer les elements du meme type vectoriellement avec la query et selectionner uniquement les meilleurs chunks
 
-    il faut utiliser une enum pour les query d'historique :
-    get(enumID)
-    set(enumID, data)
-}
+creer le contexte avec la query + la memoire
+
+ameliorer l'archi de l'orchestrator en mettant une enumAgent en place avec tout les agents dedans, toutes les init ce feront sur une loop de cette enum
+
+implementer une classe PromptManager qui gerera des fichiers de prompt (format texte) et les associera avec des ID issus des enum des types et des agents
+PM.get(enumID) => prompt: string
+PM.get(list of enumID) => dict[enumID, string]
+PM.set(enumID, prompt: string)
+PM.set(dict[enumID, prompt: string])
+
+dans un dossiers prompts/prompt_manager.py
+on stockera les prompts dans le meme fichier dans un dict hors du scope

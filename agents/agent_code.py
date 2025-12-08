@@ -16,6 +16,7 @@ from srcs.logger import logger
 from tools.tool_base import ToolRegistry, get_registry
 from agents.agent import Agent, AgentError
 from agents.config import AgentConfig
+from agents.types import AgentInput, AgentOutput
 from LLM import LLM
 
 

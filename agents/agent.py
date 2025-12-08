@@ -211,7 +211,7 @@ class Agent:
             lines.append(f"{key}: {value}")
         return "\n".join(lines)
 
-    def set_output(self, response: str, success: bool = True, error: Optional[str] = None):
+    def set_output(self, response: str, metadata: Dict[str, Any] = None, success: bool = True, error: Optional[str] = None):
         """
         Set agent output
 
@@ -220,17 +220,18 @@ class Agent:
             success: Whether operation succeeded
             error: Error message if failed
         """
-        metadata = {
+        metadata_base = {
             "execution_count": self._execution_count,
             "timestamp": datetime.now().isoformat()
         }
-
-        if self._input and self._input.metadata:
-            metadata.update(self._input.metadata)
+        
+        # Merge with provided metadata
+        if metadata:
+            metadata_base.update(metadata)
 
         self._output = AgentOutput(
             response=response,
-            metadata=metadata,
+            metadata=metadata_base,
             success=success,
             error=error
         )
@@ -241,6 +242,7 @@ class Agent:
             logger.info("AGENT", "Output set", {
                 "name": self._config.name,
                 "success": success,
+                "response": response,
                 "response_length": len(response)
             })
 
@@ -270,3 +272,6 @@ class Agent:
             raise AgentOutputError(
                 f"Response exceeds max length: {len(output.response)} > {self._config.max_output_length}"
             )
+        
+    def run(self, input: AgentInput) -> AgentOutput:
+        raise NotImplementedError(f"Class {self.__class__.__name__} must implement the 'run' method")

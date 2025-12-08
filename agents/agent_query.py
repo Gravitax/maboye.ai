@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from srcs.logger import logger
 from agents.agent import Agent
 from agents.config import AgentConfig
+from agents.types import AgentInput, AgentOutput
 from LLM import LLM
 
 
@@ -127,46 +128,44 @@ class AgentQuery(Agent):
 
         return True
 
-    def process_input(
-        self,
-        query: str
-    ) -> str:
+    def clean_query(self, query: str) -> str:
         """
-        Full query reformatting pipeline
+        A clean query pipeline
 
         Args:
             query: Raw query string
 
         Returns:
-            todo
+            A sanitized and normalized query
         """
         if not self.validate_query(query):
-            logger.error("AGENT_QUERY", "Invalid query", {
-                "query": query[:50]
-            })
             return ""
 
         # Sanitize
-        processed = self.sanitize_query(query)
+        cleaned = self.sanitize_query(query)
 
         # Normalize
-        processed = self.normalize_query(processed)
+        cleaned = self.normalize_query(cleaned)
 
-        # todo : identifier le type de query + return un json avec un format de data
+        return cleaned
 
-        return processed
-
-    def run(self, query: str) -> Any:
+    def run(self, input: AgentInput) -> AgentOutput:
         """
         Run query processing
 
         Args:
-            query: Raw query string
+            input: AgentInput
 
         Returns:
-            todo
+            AgentOutput
         """
 
-        query_metadata = self.process_input(query)
+        query = input.prompt
+        query_cleaned = self.clean_query(query)
 
-        return query_metadata
+        # todo : identifier le type de query + definir une liste d'etape a effectuer issues de la query
+        self.set_output(response=query_cleaned, metadata={
+            "type": "",
+            "steps": ""
+        })
+        return self.get_output()

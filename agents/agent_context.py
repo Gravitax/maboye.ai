@@ -15,6 +15,7 @@ from srcs.logger import logger
 from srcs.memory import MemoryManager, MemoryType
 from agents.agent import Agent
 from agents.config import AgentConfig
+from agents.types import AgentInput, AgentOutput
 from LLM import LLM
 
 
@@ -59,23 +60,21 @@ class AgentContext(Agent):
     #     entries = query_memory.get_last(count)
     #     return [entry["data"] for entry in entries]
 
-    def run(
-        self,
-        query: str
-    ) -> Dict[str, Any]:
+    def run(self, input: AgentInput) -> AgentOutput:
         """
         run context building
 
         Args:
-            query: Query string
+            input: AgentInput
 
         Returns:
-            todo
+            AgentOutput
         """
-        # self.set_input(query)
-        # print(self.get_input())
-        # self.set_output(self.query_llm())
-        # print(self.get_output())
 
-        context = query
-        return context
+        # self.set_input(query)
+        # response = self.query_llm()
+
+        context = input.prompt
+    
+        self.set_output(response=context)
+        return self.get_output()

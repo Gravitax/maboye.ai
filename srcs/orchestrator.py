@@ -22,7 +22,7 @@ from agents.agent_query import AgentQuery
 from agents.agent_context import AgentContext
 from agents.agent_code import AgentCode
 from agents.config import AgentConfig
-from agents.types import Message
+from agents.types import AgentInput, AgentOutput, Message
 from LLM import LLM
 
 
@@ -115,13 +115,13 @@ class Orchestrator:
 
     def process_query(
         self,
-        user_query: str
+        query_user: str
     ) -> OrchestratorOutput:
         """
         Process user query through complete pipeline
 
         Args:
-            user_query: Raw user query
+            query_user: Raw user query
 
         Returns:
             OrchestratorOutput with results
@@ -131,26 +131,44 @@ class Orchestrator:
                 logger.separator("Query Processing Started")
                 logger.info("ORCHESTRATOR", "Processing query", {
                     "session_id": self._session_id,
-                    "query": user_query,
-                    "query_length": len(user_query)
+                    "query": query_user,
+                    "query_length": len(query_user)
                 })
 
             # Step 1: Reformat query
             if self._enable_logging:
                 logger.info("ORCHESTRATOR", "Step 1: Reformat query")
-            reformatted_query = self._agent_query.run(user_query)
+            # todo: definir le contexte afin d'obtenir un type de query et une liste de steps pour effectuer cette query
+            output = self._agent_query.run(AgentInput(prompt=query_user))
+            query_reformatted = output.response
+            query_type = output.metadata["type"]
+            query_steps = output.metadata["steps"]
+
+            if self._enable_logging:
+                logger.info("ORCHESTRATOR", {
+                    "query_reformatted": query_reformatted,
+                    "type": query_type,
+                    "steps": query_steps
+                })
 
             # Check if query is valid after reformatting
-            if not reformatted_query or not reformatted_query.strip():
+            if not query_reformatted or not query_reformatted.strip():
                 return OrchestratorOutput(
                     success=False,
                     error="Query is empty or invalid. Please provide a valid message."
                 )
 
+            # todo: celon le query type on appel tel ou tel agent
+            # todo definir une enum type (question general, faire du code, traiter des commandes shell, analyser un document, etc...)
+            # todo: stocker la memoire sous le format: { memoryType, enumType, id, rawString, embedString }
+
             # Step 2: Build context
             if self._enable_logging:
                 logger.info("ORCHESTRATOR", "Step 2: Build context")
-            context = self._agent_context.run(reformatted_query)
+            # todo: definir le contexte afin recuperer la memoire en rapport avec la query, son type et ses steps
+            # peu-etre associer des mots clefs au type pour faire une comparaison vectorielle avec les chunks de memoire
+            output = self._agent_context.run(AgentInput(prompt=query_reformatted))
+            context = output.response
 
             # Step 3: Query LLM
             if self._enable_logging:
@@ -160,7 +178,7 @@ class Orchestrator:
             # Build messages for LLM
             messages = [
                 Message(role="system", content="You are a helpful AI assistant."),
-                Message(role="user", content=reformatted_query)
+                Message(role="user", content=query_reformatted)
             ]
             response = self._llm.chat_completion(messages)
             llm_response = response.choices[0].message.content
@@ -169,10 +187,9 @@ class Orchestrator:
             if self._enable_logging:
                 logger.info("ORCHESTRATOR", "Step 4: Storing in memory")
             self._store_in_memory(
-                user_query,
-                reformatted_query,
-                context,
-                llm_response
+                query_user,
+                query_reformatted,
+                context
             )
 
             # Create output
@@ -180,7 +197,7 @@ class Orchestrator:
                 success=True,
                 response=llm_response,
                 metadata={
-                    "reformatted_query": reformatted_query,
+                    "query_reformatted": query_reformatted,
                     "session_id": self._session_id
                 }
             )
@@ -206,16 +223,15 @@ class Orchestrator:
     def _store_in_memory(
         self,
         original_query: str,
-        reformatted_query: str,
-        context: Dict[str, Any],
-        llm_response: str
+        query_reformatted: str,
+        context: Dict[str, Any]
     ) -> None:
         """
         Store all data in memory
 
         Args:
             original_query: Original user query
-            reformatted_query: Reformatted query
+            query_reformatted: Reformatted query
             context: Context used
             llm_response: LLM response
         """
@@ -226,7 +242,7 @@ class Orchestrator:
             original_query,
             metadata={
                 "session_id": self._session_id,
-                "reformatted": reformatted_query
+                "reformatted": query_reformatted
             }
         )
 
