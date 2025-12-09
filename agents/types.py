@@ -1,62 +1,73 @@
 """
-Type definitions for agent system
+Type definitions for the agent system.
 
-Provides Pydantic models for agent input/output.
-Re-exports LLM types for convenience.
+This module provides structured types for agent inputs, outputs, conversation messages,
+and tool interactions, ensuring clear data contracts throughout the agent architecture.
 """
 
-import sys
-from pathlib import Path
-from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from typing import Optional, Dict, Any, List, Literal, TypedDict
+from pydantic import BaseModel, Field
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Re-export LLM types for convenience
-from LLM.types import (
-    Message,
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-    CompletionRequest,
-    CompletionResponse,
-    ChatCompletionChoice,
-    CompletionChoice,
-    Usage,
-    Model,
-    ModelsResponse
+# Re-export LLM types for convenience, though direct use should be minimal in agents.
+from core.llm_wrapper.types import (
+    LLMMessage as LLMWrapperMessage,
+    LLMChatRequest,
+    LLMChatResponse,
 )
 
 
+class ToolCall(TypedDict):
+    """Represents a tool call requested by the LLM."""
+    id: str  # Unique identifier for the tool call
+    name: str
+    args: Dict[str, Any]
+
+
+class ToolResult(TypedDict):
+    """Represents the result of a tool execution."""
+    tool_call_id: str  # The ID of the corresponding tool call
+    tool_name: str
+    result: str
+    success: bool
+    execution_time: float
+
+
+class Message(TypedDict, total=False):
+    """
+    Represents a single message in the conversation history.
+    This structure is flexible to accommodate different message types.
+    """
+    role: Literal["system", "user", "assistant", "tool"]
+    content: Optional[str]
+    tool_calls: Optional[List[ToolCall]]
+    tool_call_id: Optional[str] # Used for tool responses
+
+
 class AgentInput(BaseModel):
-    """Input data for agent"""
+    """Input data for an agent, defining the user's request."""
     prompt: str
-    context: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentOutput(BaseModel):
-    """Output data from agent"""
+    """Output data from an agent, representing the final response."""
     response: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     success: bool = True
     error: Optional[str] = None
 
 
-# Expose all types
+# Expose all types for clear imports
 __all__ = [
-    # Agent types
+    # Agent-specific types
     "AgentInput",
     "AgentOutput",
-    # LLM types (re-exported)
     "Message",
-    "ChatCompletionRequest",
-    "ChatCompletionResponse",
-    "CompletionRequest",
-    "CompletionResponse",
-    "ChatCompletionChoice",
-    "CompletionChoice",
-    "Usage",
-    "Model",
-    "ModelsResponse",
+    "ToolCall",
+    "ToolResult",
+    # Re-exported LLM Wrapper types (for core components)
+    "LLMWrapperMessage",
+    "LLMChatRequest",
+    "LLMChatResponse",
 ]

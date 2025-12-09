@@ -4,14 +4,10 @@ Git operations for agent system
 Provides Git repository operations built on shell execution.
 """
 
-import sys
-from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from tools.shell import run_command, ShellError, CommandExecutionError
-from srcs.logger import logger
+from tools.shell import run_command, CommandExecutionError
+from core.logger import logger
 
 
 class GitError(Exception):

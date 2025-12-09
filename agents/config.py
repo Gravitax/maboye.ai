@@ -16,6 +16,8 @@ class AgentConfig:
     enable_logging: bool = True
     max_input_length: int = 10000
     max_output_length: int = 10000
+    max_agent_turns: int = 10
+    max_history_turns: int = 10  # New: Max turns to keep in conversation history
     system_prompt: Optional[str] = None
     metadata: dict = field(default_factory=dict)
 
@@ -25,3 +27,5 @@ class AgentConfig:
             raise ValueError("Max input length must be positive")
         if self.max_output_length <= 0:
             raise ValueError("Max output length must be positive")
+        if self.max_history_turns <= 0:
+            raise ValueError("Max history turns must be positive")

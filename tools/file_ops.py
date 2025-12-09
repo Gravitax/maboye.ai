@@ -4,14 +4,11 @@ File operations for agent system
 Provides basic file operations: read, write, edit, and metadata.
 """
 
-import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 import os
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from srcs.logger import logger
+from core.logger import logger
 
 
 class FileOperationError(Exception):

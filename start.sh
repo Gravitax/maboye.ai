@@ -15,7 +15,7 @@ cd "$SCRIPT_DIR"
 
 PROJECT_DIR="$SCRIPT_DIR"
 VENV_DIR="$PROJECT_DIR/venv"
-BACKEND_DIR="$PROJECT_DIR/backend"
+BACKEND_DIR="$PROJECT_DIR/backendMock"
 
 echo "=========================================="
 echo "Starting maboye.ai"
@@ -51,12 +51,12 @@ if [ -f "$PROJECT_DIR/agents/requirements.txt" ]; then
     pip install -r "$PROJECT_DIR/agents/requirements.txt" --quiet
 fi
 
-# Check if .env exists at project root
-if [ ! -f "$PROJECT_DIR/.env" ]; then
-    echo "Warning: .env not found at project root"
-    if [ -f "$PROJECT_DIR/.env.example" ]; then
+# Check if .env exists in backendMock
+if [ ! -f "$BACKEND_DIR/.env" ]; then
+    echo "Warning: .env not found in backendMock"
+    if [ -f "$BACKEND_DIR/.env.example" ]; then
         echo "Creating .env from .env.example..."
-        cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
+        cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
     fi
 fi
 

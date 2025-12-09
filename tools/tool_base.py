@@ -5,16 +5,11 @@ Provides a unified interface for all agent tools with parameter validation,
 execution tracking, and a central registry.
 """
 
-import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import inspect
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from srcs.logger import logger
+from core.logger import logger
 
 
 @dataclass
@@ -237,12 +232,6 @@ class ToolRegistry:
             self._categories[category] = []
         self._categories[category].append(tool.name)
 
-        logger.info("TOOL_REGISTRY", "Tool registered", {
-            "name": tool.name,
-            "category": category,
-            "dangerous": tool.metadata.dangerous
-        })
-
     def unregister(self, tool_name: str):
         """
         Unregister a tool
@@ -260,10 +249,6 @@ class ToolRegistry:
                 self._categories[category].remove(tool_name)
                 if not self._categories[category]:
                     del self._categories[category]
-
-            logger.info("TOOL_REGISTRY", "Tool unregistered", {
-                "name": tool_name
-            })
 
     def get_tool(self, tool_name: str) -> Optional[Tool]:
         """

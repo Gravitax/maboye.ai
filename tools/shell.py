@@ -4,17 +4,13 @@ Shell command execution for agent system
 Provides safe command execution with timeout, output capture, and process management.
 """
 
-import sys
 from pathlib import Path
 import subprocess
 import os
 from typing import Optional, Dict, Any, List
-import signal
 import time
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from srcs.logger import logger
+from core.logger import logger
 
 
 class ShellError(Exception):

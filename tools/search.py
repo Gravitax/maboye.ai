@@ -4,15 +4,12 @@ Search operations for agent system
 Provides file search (glob) and content search (grep) capabilities.
 """
 
-import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import re
 import glob as glob_module
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from srcs.logger import logger
+from core.logger import logger
 
 
 class SearchError(Exception):
@@ -293,3 +290,331 @@ def find_files_by_content(
     )
 
     return results["files_with_matches"]
+
+
+def _is_ripgrep_available() -> bool:
+    """
+    Check if ripgrep is available
+
+    Returns:
+        True if ripgrep is installed
+    """
+    import shutil
+    return shutil.which("rg") is not None
+
+
+def _build_ripgrep_command(
+    pattern: str,
+    path: str,
+    file_pattern: Optional[str],
+    case_sensitive: bool,
+    max_results: Optional[int],
+    context_lines: int
+) -> List[str]:
+    """
+    Build ripgrep command arguments
+
+    Args:
+        pattern: Regex pattern
+        path: Directory path
+        file_pattern: File pattern filter
+        case_sensitive: Case sensitivity flag
+        max_results: Maximum results limit
+        context_lines: Context lines count
+
+    Returns:
+        Command arguments list
+    """
+    cmd = ["rg", "--json"]
+
+    if not case_sensitive:
+        cmd.append("-i")
+
+    if context_lines > 0:
+        cmd.extend(["-C", str(context_lines)])
+
+    if file_pattern:
+        cmd.extend(["-g", file_pattern])
+
+    if max_results:
+        cmd.extend(["-m", str(max_results)])
+
+    cmd.append(pattern)
+    cmd.append(path)
+
+    return cmd
+
+
+def _parse_ripgrep_match(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Parse ripgrep match data
+
+    Args:
+        data: Match data dictionary
+
+    Returns:
+        Parsed match or None
+    """
+    match_data = data.get("data", {})
+    file_path = match_data.get("path", {}).get("text")
+    line_number = match_data.get("line_number")
+    line_text = match_data.get("lines", {}).get("text", "").rstrip()
+
+    if not file_path:
+        return None
+
+    return {
+        "file_path": file_path,
+        "line_number": line_number,
+        "line": line_text
+    }
+
+
+def _parse_ripgrep_context(data: Dict[str, Any]) -> str:
+    """
+    Parse ripgrep context line
+
+    Args:
+        data: Context data dictionary
+
+    Returns:
+        Context line text
+    """
+    context_data = data.get("data", {})
+    return context_data.get("lines", {}).get("text", "").rstrip()
+
+
+def _execute_ripgrep(cmd: List[str]) -> str:
+    """
+    Execute ripgrep command
+
+    Args:
+        cmd: Command arguments
+
+    Returns:
+        Command output
+
+    Raises:
+        SearchError: Execution failed
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        return result.stdout
+
+    except subprocess.TimeoutExpired:
+        raise SearchError("Code search timeout")
+
+    except Exception as e:
+        raise SearchError(f"Ripgrep execution failed: {e}")
+
+
+def _create_empty_search_results(pattern: str) -> Dict[str, Any]:
+    """
+    Create empty search results structure
+
+    Args:
+        pattern: Search pattern
+
+    Returns:
+        Empty results dictionary
+    """
+    return {
+        "pattern": pattern,
+        "files_searched": 0,
+        "matches_found": 0,
+        "files_with_matches": [],
+        "content_matches": []
+    }
+
+
+def _process_ripgrep_output(output: str, pattern: str) -> Dict[str, Any]:
+    """
+    Process ripgrep JSON output
+
+    Args:
+        output: Ripgrep JSON output
+        pattern: Search pattern
+
+    Returns:
+        Search results dictionary
+    """
+    import json
+
+    results = _create_empty_search_results(pattern)
+    current_file = None
+    current_matches = []
+    files_seen = set()
+
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+
+        try:
+            data = json.loads(line)
+            data_type = data.get("type")
+
+            if data_type == "match":
+                match_info = _parse_ripgrep_match(data)
+                if not match_info:
+                    continue
+
+                file_path = match_info["file_path"]
+
+                if file_path not in files_seen:
+                    _finalize_file_matches(results, current_file, current_matches)
+                    files_seen.add(file_path)
+                    results["files_with_matches"].append(file_path)
+                    current_file = file_path
+                    current_matches = []
+
+                current_matches.append({
+                    "line_number": match_info["line_number"],
+                    "line": match_info["line"],
+                    "context": []
+                })
+                results["matches_found"] += 1
+
+            elif data_type == "context":
+                context_line = _parse_ripgrep_context(data)
+                if current_matches:
+                    current_matches[-1]["context"].append(context_line)
+
+        except json.JSONDecodeError:
+            continue
+
+    _finalize_file_matches(results, current_file, current_matches)
+    results["files_searched"] = len(files_seen)
+
+    return results
+
+
+def _finalize_file_matches(
+    results: Dict[str, Any],
+    current_file: Optional[str],
+    current_matches: List[Dict[str, Any]]
+):
+    """
+    Finalize matches for current file
+
+    Args:
+        results: Results dictionary to update
+        current_file: Current file path
+        current_matches: Current file matches
+    """
+    if current_file and current_matches:
+        results["content_matches"].append({
+            "file": current_file,
+            "matches": current_matches
+        })
+
+
+def code_search_ripgrep(
+    pattern: str,
+    path: str = ".",
+    file_pattern: Optional[str] = None,
+    case_sensitive: bool = True,
+    max_results: Optional[int] = None,
+    context_lines: int = 2
+) -> Dict[str, Any]:
+    """
+    Search code using ripgrep
+
+    Args:
+        pattern: Regex pattern
+        path: Directory path
+        file_pattern: File pattern filter
+        case_sensitive: Case sensitivity
+        max_results: Maximum results
+        context_lines: Context lines
+
+    Returns:
+        Search results dictionary
+
+    Raises:
+        SearchError: Search failed
+    """
+    base_path = Path(path).resolve()
+
+    if not base_path.exists():
+        logger.error("SEARCH", "Path not found", {"path": str(base_path)})
+        raise SearchError(f"Path not found: {path}")
+
+    logger.info("SEARCH", "Running ripgrep code search", {
+        "pattern": pattern,
+        "path": str(base_path)
+    })
+
+    cmd = _build_ripgrep_command(
+        pattern,
+        str(base_path),
+        file_pattern,
+        case_sensitive,
+        max_results,
+        context_lines
+    )
+
+    output = _execute_ripgrep(cmd)
+    results = _process_ripgrep_output(output, pattern)
+
+    logger.info("SEARCH", "Ripgrep search completed", {
+        "pattern": pattern,
+        "files_searched": results["files_searched"],
+        "matches_found": results["matches_found"]
+    })
+
+    return results
+
+
+def code_search(
+    pattern: str,
+    path: str = ".",
+    file_pattern: Optional[str] = None,
+    case_sensitive: bool = True,
+    max_results: Optional[int] = None,
+    context_lines: int = 2
+) -> Dict[str, Any]:
+    """
+    Search code with automatic ripgrep fallback
+
+    Args:
+        pattern: Regex pattern
+        path: Directory path
+        file_pattern: File pattern filter
+        case_sensitive: Case sensitivity
+        max_results: Maximum results
+        context_lines: Context lines
+
+    Returns:
+        Search results dictionary
+    """
+    if _is_ripgrep_available():
+        try:
+            return code_search_ripgrep(
+                pattern,
+                path,
+                file_pattern,
+                case_sensitive,
+                max_results,
+                context_lines
+            )
+        except SearchError as e:
+            logger.warning("SEARCH", "Ripgrep failed, using fallback", {
+                "error": str(e)
+            })
+
+    return grep_content(
+        pattern=pattern,
+        path=path,
+        file_pattern=file_pattern,
+        case_sensitive=case_sensitive,
+        output_mode="content",
+        context_lines=context_lines,
+        max_results=max_results
+    )

@@ -5,12 +5,11 @@ Provides command-line interface with command handling and input loop.
 """
 
 import sys
-from pathlib import Path
 from typing import Optional, Callable, Dict
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from srcs.logger import logger
+from core.logger import logger
+
+from cli.cli_utils import Color, Cursor, _print_formatted_message
 
 
 class Terminal:
@@ -20,7 +19,7 @@ class Terminal:
     Provides continuous input loop, command parsing, and help system.
     """
 
-    def __init__(self, prompt: str = "> "):
+    def __init__(self, prompt: str = f"{Color.BLUE}{Color.BOLD}You:{Color.RESET} > "):
         """
         Initialize terminal
 
@@ -33,6 +32,37 @@ class Terminal:
         self._setup_default_commands()
 
         logger.info("TERMINAL", "Terminal initialized")
+
+    def _print_message(
+        self,
+        message: str,
+        prefix: str = "",
+        color: str = "",
+        style: str = "",
+        stream=sys.stdout,
+        end: str = "\n"
+    ):
+        """
+        Unified method to print messages to the terminal, using formatted output.
+        """
+        _print_formatted_message(message, prefix, color, style, stream, end)
+
+    def _display_ascii_title(self):
+        """
+        Displays an ASCII art title for the Gemini CLI.
+        """
+        ascii_art = rf"""
+{Color.BRIGHT_MAGENTA}              ___.                               _____  .___{Color.RESET}
+{Color.MAGENTA}  _____ _____ \_ |__   ____ ___.__. ____        /  _  \ |   |{Color.RESET}
+{Color.BRIGHT_BLUE} /     \\__  \ | __ \ /  _ <   |  |/ __ \      /  /_\  \|   |{Color.RESET}
+{Color.BLUE}|  Y Y  \/ __ \| \_\ (  <_> )___  \  ___/     /    |    \   |{Color.RESET}
+{Color.BRIGHT_CYAN}|__|_|  (____  /___  /\____// ____|\___  > /\ \____|__  /___|{Color.RESET}
+{Color.CYAN}      \/     \/    \/       \/         \/  \/         \/{Color.RESET}
+"""
+        self._print_message(ascii_art, style=Color.BOLD)
+        self._print_message("Welcome to maboye.AI CLI!", color=Color.CYAN, style=Color.BOLD)
+        self._print_message("Type /help for available commands.", color=Color.YELLOW)
+        self._print_message("")
 
     def _setup_default_commands(self):
         """Setup default built-in commands"""
@@ -72,15 +102,15 @@ class Terminal:
         Returns:
             True to continue running
         """
-        print("\nAvailable commands:")
-        print("-" * 60)
+        self._print_message("\nAvailable commands:", style=Color.BOLD)
+        self._print_message("-" * 60)
 
         for name, cmd in sorted(self.commands.items()):
             desc = cmd["description"] or "No description"
-            print(f"  /{name:<15} {desc}")
+            self._print_message(f"  /{name:<15} {desc}")
 
-        print("-" * 60)
-        print()
+        self._print_message("-" * 60)
+        self._print_message("")
         return True
 
     def _cmd_exit(self, args: list) -> bool:
@@ -93,7 +123,7 @@ class Terminal:
         Returns:
             False to stop running
         """
-        print("\nExiting...")
+        self._print_message("\nExiting...", color=Color.YELLOW)
         logger.info("TERMINAL", "Exit command received")
         return False
 
@@ -107,8 +137,8 @@ class Terminal:
         Returns:
             True to continue running
         """
-        import os
-        os.system('clear' if os.name == 'posix' else 'cls')
+        sys.stdout.write(Cursor.ERASE_DISPLAY)
+        sys.stdout.flush()
         return True
 
     def process_input(self, user_input: str) -> Optional[str]:
@@ -144,8 +174,12 @@ class Terminal:
 
                 return None
             else:
-                print(f"Unknown command: /{cmd_name}")
-                print("Type /help for available commands")
+                self._print_message(
+                    f"Unknown command: /{cmd_name}", color=Color.RED, style=Color.BOLD
+                )
+                self._print_message(
+                    "Type /help for available commands", color=Color.YELLOW
+                )
                 return None
 
         # Regular input (not a command)
@@ -164,27 +198,9 @@ class Terminal:
             logger.info("TERMINAL", "EOF received")
             return None
         except KeyboardInterrupt:
-            print()
+            self._print_message("", end="")
             logger.info("TERMINAL", "Interrupted by user")
             return None
-
-    def print_header(self, title: str):
-        """
-        Print formatted header
-
-        Args:
-            title: Header title
-        """
-        width = 60
-        print()
-        print("=" * width)
-        print(f" {title}")
-        print("=" * width)
-        print()
-
-    def print_separator(self):
-        """Print separator line"""
-        print("-" * 60)
 
     def run(self, input_handler: Optional[Callable[[str], None]] = None):
         """
@@ -195,6 +211,7 @@ class Terminal:
         """
         self.running = True
 
+        self._display_ascii_title()
         logger.info("TERMINAL", "Starting interactive loop")
 
         while self.running:
@@ -212,7 +229,7 @@ class Terminal:
                     logger.error("TERMINAL", "Input handler error", {
                         "error": str(e)
                     })
-                    print(f"Error: {e}")
+                    self._print_message(f"Error: {e}", color=Color.RED, style=Color.BOLD)
 
         logger.info("TERMINAL", "Interactive loop stopped")
 

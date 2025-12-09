@@ -5,12 +5,6 @@ Provides Tool class wrappers for file operations, search, shell, and git.
 All implementations delegate to existing functions to avoid code duplication.
 """
 
-import sys
-from pathlib import Path
-from typing import Any
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from tools.tool_base import Tool, ToolMetadata, ToolParameter
 from tools import file_ops
 from tools import search
@@ -227,6 +221,128 @@ class GrepContentTool(Tool):
         return search.grep_content(pattern, path, file_pattern, case_sensitive)
 
 
+class ListDirectoryTool(Tool):
+    """Tool for listing directory contents"""
+
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="list_directory",
+            description="List directory contents with metadata",
+            parameters=[
+                ToolParameter(
+                    name="path",
+                    type=str,
+                    description="Directory path to list",
+                    required=False,
+                    default="."
+                ),
+                ToolParameter(
+                    name="include_hidden",
+                    type=bool,
+                    description="Include hidden files",
+                    required=False,
+                    default=False
+                ),
+                ToolParameter(
+                    name="files_only",
+                    type=bool,
+                    description="List only files",
+                    required=False,
+                    default=False
+                ),
+                ToolParameter(
+                    name="dirs_only",
+                    type=bool,
+                    description="List only directories",
+                    required=False,
+                    default=False
+                )
+            ],
+            category="search"
+        )
+
+    def execute(
+        self,
+        path: str = ".",
+        include_hidden: bool = False,
+        files_only: bool = False,
+        dirs_only: bool = False
+    ):
+        return search.list_directory(path, include_hidden, files_only, dirs_only)
+
+
+class CodeSearchTool(Tool):
+    """Tool for high-performance code search using ripgrep"""
+
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="code_search",
+            description="Search code with ripgrep for maximum performance",
+            parameters=[
+                ToolParameter(
+                    name="pattern",
+                    type=str,
+                    description="Regex pattern to search for",
+                    required=True
+                ),
+                ToolParameter(
+                    name="path",
+                    type=str,
+                    description="Directory to search in",
+                    required=False,
+                    default="."
+                ),
+                ToolParameter(
+                    name="file_pattern",
+                    type=str,
+                    description="File pattern filter",
+                    required=False,
+                    default=None
+                ),
+                ToolParameter(
+                    name="case_sensitive",
+                    type=bool,
+                    description="Case-sensitive search",
+                    required=False,
+                    default=True
+                ),
+                ToolParameter(
+                    name="max_results",
+                    type=int,
+                    description="Maximum number of results",
+                    required=False,
+                    default=None
+                ),
+                ToolParameter(
+                    name="context_lines",
+                    type=int,
+                    description="Lines of context around matches",
+                    required=False,
+                    default=2
+                )
+            ],
+            category="search"
+        )
+
+    def execute(
+        self,
+        pattern: str,
+        path: str = ".",
+        file_pattern: str = None,
+        case_sensitive: bool = True,
+        max_results: int = None,
+        context_lines: int = 2
+    ):
+        return search.code_search(
+            pattern,
+            path,
+            file_pattern,
+            case_sensitive,
+            max_results,
+            context_lines
+        )
+
+
 # Shell Tools
 
 class ExecuteCommandTool(Tool):
@@ -370,6 +486,90 @@ class GitCommitTool(Tool):
         return git_ops.git_commit(message, path)
 
 
+class GitDiffTool(Tool):
+    """Tool for viewing Git diffs"""
+
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="git_diff",
+            description="View Git diff of changes",
+            parameters=[
+                ToolParameter(
+                    name="path",
+                    type=str,
+                    description="Repository path",
+                    required=False,
+                    default="."
+                ),
+                ToolParameter(
+                    name="staged",
+                    type=bool,
+                    description="Show staged changes",
+                    required=False,
+                    default=False
+                ),
+                ToolParameter(
+                    name="files",
+                    type=list,
+                    description="Specific files to diff",
+                    required=False,
+                    default=None
+                )
+            ],
+            category="git"
+        )
+
+    def execute(
+        self,
+        path: str = ".",
+        staged: bool = False,
+        files: list = None
+    ) -> str:
+        return git_ops.git_diff(path, staged, files)
+
+
+class GitLogTool(Tool):
+    """Tool for viewing Git commit history"""
+
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="git_log",
+            description="View Git commit history",
+            parameters=[
+                ToolParameter(
+                    name="path",
+                    type=str,
+                    description="Repository path",
+                    required=False,
+                    default="."
+                ),
+                ToolParameter(
+                    name="max_count",
+                    type=int,
+                    description="Maximum commits to show",
+                    required=False,
+                    default=10
+                ),
+                ToolParameter(
+                    name="oneline",
+                    type=bool,
+                    description="One line per commit",
+                    required=False,
+                    default=False
+                )
+            ],
+            category="git"
+        )
+
+    def execute(
+        self,
+        path: str = ".",
+        max_count: int = 10,
+        oneline: bool = False
+    ) -> str:
+        return git_ops.git_log(path, max_count, oneline)
+
+
 def register_all_tools():
     """Register all tool implementations in global registry"""
     from tools.tool_base import register_tool
@@ -382,6 +582,8 @@ def register_all_tools():
     # Search
     register_tool(GlobFilesTool())
     register_tool(GrepContentTool())
+    register_tool(ListDirectoryTool())
+    register_tool(CodeSearchTool())
 
     # Shell
     register_tool(ExecuteCommandTool())
@@ -390,3 +592,5 @@ def register_all_tools():
     register_tool(GitStatusTool())
     register_tool(GitAddTool())
     register_tool(GitCommitTool())
+    register_tool(GitDiffTool())
+    register_tool(GitLogTool())

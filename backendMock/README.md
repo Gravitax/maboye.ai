@@ -54,53 +54,6 @@ Create a chat completion.
 }
 ```
 
----
-
-## POST /v1/completions
-
-Create a text completion.
-
-**Request Body:**
-```json
-{
-  "model": "text-davinci-003",
-  "prompt": "Say this is a test",
-  "temperature": 0.7,
-  "top_p": 1.0,
-  "max_tokens": 50,
-  "n": 1,
-  "stop": null,
-  "presence_penalty": 0.0,
-  "frequency_penalty": 0.0,
-  "user": "user-123"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "id": "cmpl-mock-1",
-  "object": "text_completion",
-  "created": 1234567890,
-  "model": "text-davinci-003",
-  "choices": [
-    {
-      "index": 0,
-      "text": "Mock completion for: Say this is a test...",
-      "finish_reason": "stop",
-      "logprobs": null
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 5,
-    "completion_tokens": 8,
-    "total_tokens": 13
-  }
-}
-```
-
----
-
 ## GET /v1/models
 
 List available models.
