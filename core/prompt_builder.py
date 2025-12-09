@@ -37,23 +37,27 @@ class PromptBuilder:
 
         Returns:
             A list of messages ready to be sent to the LLM, with the system
-            prompt prepended.
+            prompt prepended and history messages following.
         """
+        logger.info(
+            "PROMPT_BUILDER",
+            f"Building context from {len(history)} history messages"
+        )
+
         messages: List[Message] = []
 
         # 1. Add the system prompt, including tool descriptions
         full_system_prompt = self._system_prompt + "\n\n" + self._get_tools_prompt()
-        messages.append({
-            "role": "system",
-            "content": full_system_prompt
-        })
+        system_message = {"role": "system", "content": full_system_prompt}
+        messages.append(system_message)
 
-        # 2. Add the conversation history
+        self._log_system_prompt(full_system_prompt)
+
+        # 2. Add the conversation history (alternating user/assistant)
         messages.extend(history)
+        self._log_history_messages(history)
 
-        logger.debug("PROMPT_BUILDER", "Built messages from history", {
-            "message_count": len(messages)
-        })
+        self._log_final_context(messages)
         return messages
 
     def _get_tools_prompt(self) -> str:
@@ -97,3 +101,53 @@ class PromptBuilder:
             prompt_lines.append(tool_str)
 
         return "\n".join(prompt_lines)
+
+    def _log_system_prompt(self, system_prompt: str) -> None:
+        """Logs system prompt details."""
+        preview = system_prompt[:300] + "..." if len(system_prompt) > 300 else system_prompt
+        logger.info(
+            "PROMPT_BUILDER",
+            "System prompt constructed",
+            {
+                "length": len(system_prompt),
+                "preview": preview
+            }
+        )
+
+    def _log_history_messages(self, history: List[Message]) -> None:
+        """Logs conversation history messages."""
+        logger.info(
+            "PROMPT_BUILDER",
+            f"Adding {len(history)} messages from history"
+        )
+
+        for idx, msg in enumerate(history):
+            content = msg.get("content", "")
+            content_preview = content[:150] if content else "[no content]"
+
+            logger.debug(
+                "PROMPT_BUILDER",
+                f"History message {idx + 1}/{len(history)}",
+                {
+                    "role": msg["role"],
+                    "content_length": len(content) if content else 0,
+                    "content_preview": content_preview,
+                    "has_tool_calls": "tool_calls" in msg
+                }
+            )
+
+    def _log_final_context(self, messages: List[Message]) -> None:
+        """Logs final context summary."""
+        role_counts = {}
+        for msg in messages:
+            role = msg["role"]
+            role_counts[role] = role_counts.get(role, 0) + 1
+
+        logger.info(
+            "PROMPT_BUILDER",
+            f"Final context built with {len(messages)} messages",
+            {
+                "total_messages": len(messages),
+                "by_role": role_counts
+            }
+        )

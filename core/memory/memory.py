@@ -15,12 +15,7 @@ from core.logger import logger
 
 class MemoryType(Enum):
     """Memory type identifiers for storage and retrieval"""
-    QUERIES = "queries"
-    CONTEXTS = "contexts"
     CONVERSATION = "conversation"
-    TOOL_RESULTS = "tool_results"
-    PROMPTS = "prompts"
-    CONTEXT_SERVICES = "context_services"
 
 
 class Memory:
@@ -145,46 +140,12 @@ class Memory:
         return self._type
 
 
-class QueryMemory(Memory):
-    """
-    Memory for storing user queries
-
-    Specialized for query-specific operations and formatting.
-    """
-
-    def __init__(self, max_size: int = 1000):
-        """
-        Initialize query memory
-
-        Args:
-            max_size: Maximum number of queries to keep
-        """
-        super().__init__(MemoryType.QUERIES, max_size)
-
-
-class ContextMemory(Memory):
-    """
-    Memory for storing LLM contexts
-
-    Specialized for context-specific operations.
-    """
-
-    def __init__(self, max_size: int = 1000):
-        """
-        Initialize context memory
-
-        Args:
-            max_size: Maximum number of contexts to keep
-        """
-        super().__init__(MemoryType.CONTEXTS, max_size)
-
-
 class ConversationMemory(Memory):
     """
-    Memory for storing conversation history
+    Memory for storing enriched conversation turns
 
-    Used in iterative reasoning cycle to maintain context across
-    multiple LLM calls and tool executions.
+    Stores complete interaction history including user queries, LLM responses,
+    prompts, context, tool calls, and tool results.
     """
 
     def __init__(self, max_size: int = 100):
@@ -200,20 +161,45 @@ class ConversationMemory(Memory):
         self,
         role: str,
         content: str,
+        query: Optional[str] = None,
+        prompt: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        tool_calls: Optional[List[Dict[str, Any]]] = None,
+        tool_results: Optional[List[Dict[str, Any]]] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """
-        Add conversation turn
+        Add enriched conversation turn
 
         Args:
             role: Role (user, assistant, tool)
             content: Turn content
+            query: Original user query
+            prompt: Full prompt sent to LLM
+            context: Context information used
+            tool_calls: List of tool calls made
+            tool_results: List of tool execution results
             metadata: Optional turn metadata
         """
         turn_data = {
             "role": role,
             "content": content
         }
+
+        if query is not None:
+            turn_data["query"] = query
+
+        if prompt is not None:
+            turn_data["prompt"] = prompt
+
+        if context is not None:
+            turn_data["context"] = context
+
+        if tool_calls is not None:
+            turn_data["tool_calls"] = tool_calls
+
+        if tool_results is not None:
+            turn_data["tool_results"] = tool_results
 
         meta = metadata or {}
         meta["role"] = role
@@ -232,153 +218,3 @@ class ConversationMemory(Memory):
         """
         entries = self.get_last(max_turns)
         return [entry["data"] for entry in entries]
-
-
-class ToolResultMemory(Memory):
-    """
-    Memory for storing tool execution results
-
-    Stores results from tool calls during the reasoning cycle.
-    """
-
-    def __init__(self, max_size: int = 500):
-        """
-        Initialize tool result memory
-
-        Args:
-            max_size: Maximum number of tool results to keep
-        """
-        super().__init__(MemoryType.TOOL_RESULTS, max_size)
-
-    def add_tool_result(
-        self,
-        tool_name: str,
-        result: Any,
-        success: bool,
-        execution_time: float,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """
-        Add tool execution result
-
-        Args:
-            tool_name: Name of executed tool
-            result: Tool execution result
-            success: Whether execution succeeded
-            execution_time: Execution time in seconds
-            metadata: Optional metadata
-        """
-        result_data = {
-            "tool_name": tool_name,
-            "result": result,
-            "success": success,
-            "execution_time": execution_time
-        }
-
-        meta = metadata or {}
-        meta.update({
-            "tool_name": tool_name,
-            "success": success
-        })
-
-        self.add(result_data, meta)
-
-
-class PromptMemory(Memory):
-    """
-    Memory for storing prompt building history
-
-    Tracks prompts sent to LLM for debugging and optimization.
-    """
-
-    def __init__(self, max_size: int = 200):
-        """
-        Initialize prompt memory
-
-        Args:
-            max_size: Maximum number of prompts to keep
-        """
-        super().__init__(MemoryType.PROMPTS, max_size)
-
-    def add_prompt(
-        self,
-        prompt: str,
-        prompt_type: str,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """
-        Add prompt to memory
-
-        Args:
-            prompt: Prompt text
-            prompt_type: Type of prompt (system, user, tool)
-            metadata: Optional metadata
-        """
-        prompt_data = {
-            "prompt": prompt,
-            "prompt_type": prompt_type
-        }
-
-        meta = metadata or {}
-        meta["prompt_type"] = prompt_type
-
-        self.add(prompt_data, meta)
-
-
-class ContextServiceMemory(Memory):
-    """
-    Memory for storing context service data
-
-    Stores context from services like git, file system, etc.
-    """
-
-    def __init__(self, max_size: int = 100):
-        """
-        Initialize context service memory
-
-        Args:
-            max_size: Maximum number of context entries to keep
-        """
-        super().__init__(MemoryType.CONTEXT_SERVICES, max_size)
-
-    def add_service_context(
-        self,
-        service_name: str,
-        context_data: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """
-        Add context from service
-
-        Args:
-            service_name: Name of context service
-            context_data: Context data from service
-            metadata: Optional metadata
-        """
-        service_data = {
-            "service_name": service_name,
-            "context": context_data
-        }
-
-        meta = metadata or {}
-        meta["service_name"] = service_name
-
-        self.add(service_data, meta)
-
-    def get_latest_context(self, service_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get latest context for specific service
-
-        Args:
-            service_name: Service name to filter by
-
-        Returns:
-            Latest context data or None
-        """
-        all_entries = self.get_all()
-
-        for entry in reversed(all_entries):
-            if entry["metadata"].get("service_name") == service_name:
-                return entry["data"]["context"]
-
-        return None

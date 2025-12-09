@@ -46,83 +46,8 @@ class Application:
         )
         logger.info("APP", "Orchestrator initialized and components set up.")
 
-        # 4. Setup the terminal for user interaction
-        self.terminal = Terminal()
-        self._register_commands()
-
-    def _register_commands(self):
-        """Register custom commands for the terminal."""
-        self.terminal.register_command(
-            "reset",
-            self._cmd_reset,
-            "Reset the conversation history."
-        )
-        self.terminal.register_command(
-            "memory",
-            self._cmd_memory,
-            "Show memory statistics."
-        )
-        self.terminal.register_command(
-            "tools",
-            self._cmd_tools,
-            "List available tools."
-        )
-        self.terminal.register_command(
-            "agent",
-            self._cmd_agent_info,
-            "Show agent configuration."
-        )
-
-    def _cmd_reset(self, args: list) -> bool:
-        """Resets the conversation memory."""
-        self.orchestrator.reset_conversation()
-        print("\nConversation history has been reset.\n")
-        logger.info("APP", "Conversation memory reset by user.")
-        return True
-
-    def _cmd_memory(self, args: list) -> bool:
-        """Shows memory statistics."""
-        stats = self.orchestrator.get_memory_stats()
-        print("\nMemory Statistics:")
-        print("-" * 60)
-        for mem_type, data in stats.items():
-            print(f"\n{mem_type.upper()}:")
-            print(f"  Entries: {data['size']}")
-            print(f"  Status: {'Empty' if data['is_empty'] else 'Has data'}")
-        print("-" * 60)
-        print()
-        return True
-
-    def _cmd_tools(self, args: list) -> bool:
-        """Lists available tools."""
-        tools_info = self.orchestrator.get_tool_info()
-        print("\nAvailable Tools:")
-        print("-" * 60)
-        if not tools_info:
-            print("No tools registered.")
-        else:
-            for tool in tools_info:
-                print(f"- {tool['name']}: {tool['description']} (Category: {tool['category']})")
-                if tool['parameters']:
-                    print("  Parameters:")
-                    for param in tool['parameters']:
-                        req = " (required)" if param['required'] else ""
-                        default = f" (default: {param['default']})" if param['default'] is not None else ""
-                        print(f"    - {param['name']} ({param['type']}){req}{default}: {param['description']}")
-        print("-" * 60)
-        print()
-        return True
-
-    def _cmd_agent_info(self, args: list) -> bool:
-        """Shows agent configuration."""
-        agent_info = self.orchestrator.get_agent_info()
-        print("\nAgent Information:")
-        print("-" * 60)
-        for key, value in agent_info.items():
-            print(f"- {key}: {value}")
-        print("-" * 60)
-        print()
-        return True
+        # 4. Setup the terminal for user interaction with commands auto-loaded
+        self.terminal = Terminal(orchestrator=self.orchestrator)
 
     def handle_input(self, user_input: str):
         """
@@ -153,8 +78,6 @@ class Application:
 
         try:
             self.setup()
-
-
 
             self.terminal.run(input_handler=self.handle_input)
 

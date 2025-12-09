@@ -1,39 +1,45 @@
 """
 Interactive terminal for agent system
 
-Provides command-line interface with command handling and input loop.
+Provides command-line interface with input loop and display functionality.
 """
 
 import sys
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable
 
 from core.logger import logger
-
 from cli.cli_utils import Color, Cursor, _print_formatted_message
+from cli.command_manager import CommandManager
 
 
 class Terminal:
     """
-    Interactive terminal with command handling
+    Interactive terminal for user input and output.
 
-    Provides continuous input loop, command parsing, and help system.
+    Provides continuous input loop, display functionality, and
+    delegates command handling to CommandManager.
     """
 
-    def __init__(self, prompt: str = f"{Color.BLUE}{Color.BOLD}You:{Color.RESET} > "):
+    def __init__(
+        self,
+        orchestrator=None,
+        prompt: str = f"{Color.BLUE}{Color.BOLD}You:{Color.RESET} > "
+    ):
         """
-        Initialize terminal
+        Initialize terminal.
 
         Args:
-            prompt: Prompt string to display
+            orchestrator: Orchestrator instance for commands.
+            prompt: Prompt string to display.
         """
         self.prompt = prompt
-        self.commands: Dict[str, Callable] = {}
         self.running = False
-        self._setup_default_commands()
+        self._orchestrator = orchestrator
+        self._command_manager = CommandManager(orchestrator=orchestrator, terminal=self)
 
         logger.info("TERMINAL", "Terminal initialized")
 
-    def _print_message(
+    def print_message(
         self,
         message: str,
         prefix: str = "",
@@ -41,16 +47,22 @@ class Terminal:
         style: str = "",
         stream=sys.stdout,
         end: str = "\n"
-    ):
+    ) -> None:
         """
-        Unified method to print messages to the terminal, using formatted output.
+        Print formatted message to the terminal.
+
+        Args:
+            message: Message text to display.
+            prefix: Optional prefix string.
+            color: Color code for the message.
+            style: Style code for the message.
+            stream: Output stream to write to.
+            end: String appended after the message.
         """
         _print_formatted_message(message, prefix, color, style, stream, end)
 
-    def _display_ascii_title(self):
-        """
-        Displays an ASCII art title for the Gemini CLI.
-        """
+    def _display_ascii_title(self) -> None:
+        """Display ASCII art title for the CLI."""
         ascii_art = rf"""
 {Color.BRIGHT_MAGENTA}              ___.                               _____  .___{Color.RESET}
 {Color.MAGENTA}  _____ _____ \_ |__   ____ ___.__. ____        /  _  \ |   |{Color.RESET}
@@ -59,161 +71,133 @@ class Terminal:
 {Color.BRIGHT_CYAN}|__|_|  (____  /___  /\____// ____|\___  > /\ \____|__  /___|{Color.RESET}
 {Color.CYAN}      \/     \/    \/       \/         \/  \/         \/{Color.RESET}
 """
-        self._print_message(ascii_art, style=Color.BOLD)
-        self._print_message("Welcome to maboye.AI CLI!", color=Color.CYAN, style=Color.BOLD)
-        self._print_message("Type /help for available commands.", color=Color.YELLOW)
-        self._print_message("")
-
-    def _setup_default_commands(self):
-        """Setup default built-in commands"""
-        self.register_command("help", self._cmd_help, "Show available commands")
-        self.register_command("exit", self._cmd_exit, "Exit the application")
-        self.register_command("quit", self._cmd_exit, "Exit the application")
-        self.register_command("clear", self._cmd_clear, "Clear the screen")
+        self.print_message(ascii_art, style=Color.BOLD)
+        self.print_message("Welcome to maboye.AI CLI!", color=Color.CYAN, style=Color.BOLD)
+        self.print_message("Type /help for available commands.", color=Color.YELLOW)
+        self.print_message("")
 
     def register_command(
         self,
         name: str,
         handler: Callable,
         description: str = ""
-    ):
+    ) -> None:
         """
-        Register command handler
+        Register a command handler.
 
         Args:
-            name: Command name (without /)
-            handler: Function to call when command is entered
-            description: Help text for command
+            name: Command name (without /).
+            handler: Function to call when command is entered.
+            description: Help text for command.
         """
-        self.commands[name] = {
-            "handler": handler,
-            "description": description
-        }
-
-        logger.debug("TERMINAL", f"Registered command: /{name}")
-
-    def _cmd_help(self, args: list) -> bool:
-        """
-        Show help for available commands
-
-        Args:
-            args: Command arguments (unused)
-
-        Returns:
-            True to continue running
-        """
-        self._print_message("\nAvailable commands:", style=Color.BOLD)
-        self._print_message("-" * 60)
-
-        for name, cmd in sorted(self.commands.items()):
-            desc = cmd["description"] or "No description"
-            self._print_message(f"  /{name:<15} {desc}")
-
-        self._print_message("-" * 60)
-        self._print_message("")
-        return True
-
-    def _cmd_exit(self, args: list) -> bool:
-        """
-        Exit the terminal
-
-        Args:
-            args: Command arguments (unused)
-
-        Returns:
-            False to stop running
-        """
-        self._print_message("\nExiting...", color=Color.YELLOW)
-        logger.info("TERMINAL", "Exit command received")
-        return False
-
-    def _cmd_clear(self, args: list) -> bool:
-        """
-        Clear the terminal screen
-
-        Args:
-            args: Command arguments (unused)
-
-        Returns:
-            True to continue running
-        """
-        sys.stdout.write(Cursor.ERASE_DISPLAY)
-        sys.stdout.flush()
-        return True
+        self._command_manager.register_command(name, handler, description)
 
     def process_input(self, user_input: str) -> Optional[str]:
         """
-        Process user input and handle commands
+        Process user input and handle commands.
 
         Args:
-            user_input: Raw input from user
+            user_input: Raw input from user.
 
         Returns:
-            Processed input (None if command was handled)
+            Processed input (None if command was handled).
         """
-        user_input = user_input.strip()
+        user_input = self._sanitize_input(user_input)
 
         if not user_input:
             return None
 
-        # Check if input is a command
-        if user_input.startswith("/"):
-            parts = user_input[1:].split()
-            cmd_name = parts[0].lower()
-            args = parts[1:] if len(parts) > 1 else []
+        command_data = self._command_manager.parse_command(user_input)
 
-            if cmd_name in self.commands:
-                logger.debug("TERMINAL", f"Executing command: /{cmd_name}")
+        if command_data:
+            self._execute_parsed_command(command_data)
+            return None
 
-                # Execute command
-                continue_running = self.commands[cmd_name]["handler"](args)
-
-                # Stop running if command returns False
-                if not continue_running:
-                    self.running = False
-
-                return None
-            else:
-                self._print_message(
-                    f"Unknown command: /{cmd_name}", color=Color.RED, style=Color.BOLD
-                )
-                self._print_message(
-                    "Type /help for available commands", color=Color.YELLOW
-                )
-                return None
-
-        # Regular input (not a command)
         return user_input
+
+    def _sanitize_input(self, user_input: str) -> str:
+        """
+        Sanitize user input.
+
+        Args:
+            user_input: Raw user input.
+
+        Returns:
+            Sanitized input string.
+        """
+        return user_input.strip()
+
+    def _execute_parsed_command(self, command_data: tuple) -> None:
+        """
+        Execute a parsed command.
+
+        Args:
+            command_data: Tuple of (command_name, args).
+        """
+        cmd_name, args = command_data
+        continue_running = self._command_manager.execute_command(cmd_name, args)
+
+        if not continue_running:
+            self.running = False
 
     def read_input(self) -> Optional[str]:
         """
-        Read line from standard input
+        Read line from standard input.
 
         Returns:
-            Input line or None on EOF/error
+            Input line or None on EOF/error.
         """
         try:
             return input(self.prompt)
         except EOFError:
-            logger.info("TERMINAL", "EOF received")
-            return None
+            return self._handle_eof()
         except KeyboardInterrupt:
-            self._print_message("", end="")
-            logger.info("TERMINAL", "Interrupted by user")
-            return None
+            return self._handle_keyboard_interrupt()
 
-    def run(self, input_handler: Optional[Callable[[str], None]] = None):
+    def _handle_eof(self) -> None:
         """
-        Start interactive input loop
+        Handle EOF signal.
+
+        Returns:
+            None to signal end of input.
+        """
+        logger.info("TERMINAL", "EOF received")
+        return None
+
+    def _handle_keyboard_interrupt(self) -> None:
+        """
+        Handle keyboard interrupt signal.
+
+        Returns:
+            None to signal interrupted input.
+        """
+        self.print_message("", end="")
+        logger.info("TERMINAL", "Interrupted by user")
+        return None
+
+    def run(self, input_handler: Optional[Callable[[str], None]] = None) -> None:
+        """
+        Start interactive input loop.
 
         Args:
-            input_handler: Function to call with non-command input
+            input_handler: Function to call with non-command input.
         """
+        self._initialize_loop()
+        self._display_ascii_title()
+        self._execute_input_loop(input_handler)
+        self._finalize_loop()
+
+    def _initialize_loop(self) -> None:
+        """Initialize the input loop."""
         self.running = True
 
-        self._display_ascii_title()
-        logger.info("TERMINAL", "Starting interactive loop")
+    def _execute_input_loop(self, input_handler: Optional[Callable[[str], None]]) -> None:
+        """
+        Execute the main input loop.
 
+        Args:
+            input_handler: Function to call with non-command input.
+        """
         while self.running:
             user_input = self.read_input()
 
@@ -223,16 +207,40 @@ class Terminal:
             processed = self.process_input(user_input)
 
             if processed and input_handler:
-                try:
-                    input_handler(processed)
-                except Exception as e:
-                    logger.error("TERMINAL", "Input handler error", {
-                        "error": str(e)
-                    })
-                    self._print_message(f"Error: {e}", color=Color.RED, style=Color.BOLD)
+                self._handle_user_input(processed, input_handler)
 
+    def _handle_user_input(
+        self,
+        processed_input: str,
+        input_handler: Callable[[str], None]
+    ) -> None:
+        """
+        Handle processed user input with the handler.
+
+        Args:
+            processed_input: The processed input string.
+            input_handler: Function to call with the input.
+        """
+        try:
+            input_handler(processed_input)
+        except Exception as e:
+            self._handle_input_error(e)
+
+    def _handle_input_error(self, error: Exception) -> None:
+        """
+        Handle error from input handler.
+
+        Args:
+            error: The exception that occurred.
+        """
+        logger.error("TERMINAL", "Input handler error", {"error": str(error)})
+        self.print_message(f"Error: {error}", color=Color.RED, style=Color.BOLD)
+
+    def _finalize_loop(self) -> None:
+        """Finalize the input loop."""
         logger.info("TERMINAL", "Interactive loop stopped")
 
-    def stop(self):
-        """Stop the interactive loop"""
+    def stop(self) -> None:
+        """Stop the interactive loop."""
         self.running = False
+        self._command_manager.stop()

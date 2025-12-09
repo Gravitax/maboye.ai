@@ -102,15 +102,23 @@ class LLMWrapper:
         """Send chat request to API endpoint."""
         url = f"{self.config.base_url}/v1/chat/completions"
 
+        self._log_request_start(request)
+
         try:
+            request_payload = request.model_dump()
+            self._log_request_payload(request_payload)
+
             response = requests.post(
                 url,
-                json=request.model_dump(),
+                json=request_payload,
                 timeout=self.config.timeout
             )
             response.raise_for_status()
             data = response.json()
-            return LLMChatResponse(**data)
+            llm_response = LLMChatResponse(**data)
+
+            self._log_response_received(llm_response)
+            return llm_response
 
         except requests.ConnectionError as error:
             logger.error("LLM_WRAPPER", "Connection failed", {"url": url})
@@ -137,3 +145,59 @@ class LLMWrapper:
         Currently a no-op as requests library manages connections automatically.
         """
         logger.debug("LLM_WRAPPER", "Closing wrapper")
+
+    def _log_request_start(self, request: LLMChatRequest) -> None:
+        """Logs start of LLM request."""
+        logger.info(
+            "LLM_WRAPPER",
+            f"Sending request to LLM",
+            {
+                "model": request.model,
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "message_count": len(request.messages)
+            }
+        )
+
+    def _log_request_payload(self, payload: dict) -> None:
+        """Logs detailed request payload."""
+        logger.info(
+            "LLM_WRAPPER",
+            "Request payload details"
+        )
+
+        messages = payload.get("messages", [])
+        for idx, msg in enumerate(messages):
+            content = msg.get("content", "")
+            content_preview = content[:200] if content else "[no content]"
+
+            logger.debug(
+                "LLM_WRAPPER",
+                f"Message {idx + 1}/{len(messages)} to LLM",
+                {
+                    "role": msg.get("role"),
+                    "content_length": len(content) if content else 0,
+                    "content_preview": content_preview
+                }
+            )
+
+    def _log_response_received(self, response: LLMChatResponse) -> None:
+        """Logs LLM response received."""
+        if response.choices and len(response.choices) > 0:
+            choice = response.choices[0]
+            content = choice.message.content or ""
+            content_preview = content[:200] if content else "[no content]"
+
+            logger.info(
+                "LLM_WRAPPER",
+                "Response received from LLM",
+                {
+                    "model": response.model,
+                    "finish_reason": choice.finish_reason,
+                    "content_length": len(content),
+                    "content_preview": content_preview,
+                    "has_tool_calls": bool(choice.message.tool_calls)
+                }
+            )
+        else:
+            logger.warning("LLM_WRAPPER", "Response received with no choices")

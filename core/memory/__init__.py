@@ -1,24 +1,18 @@
 """
 Memory module for maboye.ai
 
-Provides memory management with multiple specialized types:
-- Queries
-- Contexts
-- Conversation history
-- Tool execution results
-- Prompts
-- Context services
+Provides memory management for enriched conversation history including:
+- User queries
+- LLM responses
+- Prompts sent to LLM
+- Context information
+- Tool calls and results
 """
 
 from .memory import (
     MemoryType,
     Memory,
-    QueryMemory,
-    ContextMemory,
-    ConversationMemory,
-    ToolResultMemory,
-    PromptMemory,
-    ContextServiceMemory
+    ConversationMemory
 )
 
 from .memory_manager import MemoryManager
@@ -26,11 +20,6 @@ from .memory_manager import MemoryManager
 __all__ = [
     "MemoryType",
     "Memory",
-    "QueryMemory",
-    "ContextMemory",
     "ConversationMemory",
-    "ToolResultMemory",
-    "PromptMemory",
-    "ContextServiceMemory",
     "MemoryManager"
 ]

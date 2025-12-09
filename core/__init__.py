@@ -7,8 +7,7 @@ from .memory import (
     Memory,
     MemoryType,
     MemoryManager,
-    QueryMemory,
-    ContextMemory
+    ConversationMemory
 )
 from .orchestrator import Orchestrator
 
@@ -18,8 +17,7 @@ __all__ = [
     "Memory",
     "MemoryType",
     "MemoryManager",
-    "QueryMemory",
-    "ContextMemory",
+    "ConversationMemory",
     "Orchestrator",
     "LLMWrapper",
     "LLMWrapperConfig",

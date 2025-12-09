@@ -129,8 +129,7 @@ class BackendMock:
     def _create_response_text(self, messages: List[BackendMockMessage]) -> str:
         """Create mock response text based on last message."""
         last_message = messages[-1].content if messages else ""
-        preview = last_message[:50]
-        return f"Mock response to: {preview}"
+        return f"Mock response to: {last_message}"
 
     def _calculate_usage(self, messages: List[BackendMockMessage], response: str) -> BackendMockUsage:
         """Calculate token usage for request and response."""

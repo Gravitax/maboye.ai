@@ -148,3 +148,26 @@ class Orchestrator:
             A list of dictionaries, each describing a tool.
         """
         return get_registry().get_all_tools_info()
+
+    def get_memory_content(self, memory_type_str: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Retrieves the content of a specific memory type.
+
+        Args:
+            memory_type_str: Memory type name (conversation)
+
+        Returns:
+            List of memory entries or None if invalid type
+        """
+        from core.memory import MemoryType
+
+        memory_type_map = {
+            "conversation": MemoryType.CONVERSATION
+        }
+
+        if memory_type_str.lower() not in memory_type_map:
+            return None
+
+        memory_type = memory_type_map[memory_type_str.lower()]
+        memory = self._memory_manager.get(memory_type)
+        return memory.get_all()
