@@ -6,7 +6,7 @@ consistent, scalable, and extensible architecture for creating specialized agent
 """
 
 from abc import ABC
-from typing import List, Dict, Any, Generator
+from typing import List, Dict, Any, Generator, Tuple
 
 from core.logger import logger
 from core.llm_wrapper.llm_wrapper import LLMWrapper
@@ -491,7 +491,7 @@ class BaseAgent(ABC):
 
     def _collect_tool_results(
         self, messages: List[Message], start_idx: int
-    ) -> tuple[List[Dict[str, Any]], int]:
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """
         Collect consecutive tool result messages.
 
