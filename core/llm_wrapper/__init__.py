@@ -6,7 +6,7 @@ Provides abstraction layer for LLM API interactions.
 
 from .config import LLMWrapperConfig
 from .llm_wrapper import LLMWrapper, LLMWrapperError
-from .types import (
+from .llm_types import (
     LLMMessage,
     LLMChatRequest,
     LLMChatResponse,

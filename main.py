@@ -23,13 +23,14 @@ class Application:
         """Setup all components required for the orchestrator and agent to run."""
         logger.info("APP", "Setting up application")
 
-        # 1. Define LLM Configuration
-        llm_config = LLMWrapperConfig(
-            base_url="http://127.0.0.1:8000",
-            model="gpt-4",
-            temperature=0.1,
-            timeout=120
-        )
+        # 1. Define LLM Configuration (reads from .env automatically)
+        llm_config = LLMWrapperConfig()
+        logger.info("APP", "LLM Config loaded", {
+            "base_url": llm_config.base_url,
+            "model": llm_config.model,
+            "temperature": llm_config.temperature,
+            "timeout": llm_config.timeout
+        })
 
         # 2. Define Agent Configuration
         agent_config = AgentConfig(

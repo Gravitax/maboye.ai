@@ -25,15 +25,28 @@ def get_env_int(key: str, default: int) -> int:
     return int(value) if value else default
 
 
+def get_env_bool(key: str, default: bool) -> bool:
+    """Get boolean environment variable."""
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.lower() in ("true", "1", "yes", "on")
+
+
 @dataclass
 class LLMWrapperConfig:
     """Configuration for LLM wrapper."""
 
     base_url: str = field(default_factory=lambda: get_env_str("LLM_BASE_URL", "http://127.0.0.1:8000"))
+    api_service: str = field(default_factory=lambda: get_env_str("API_SERVICE", "api/v1"))
+    embed_service: str = field(default_factory=lambda: get_env_str("EMBED_SERVICE", "embed/v1"))
     model: str = field(default_factory=lambda: get_env_str("LLM_MODEL", "gpt-4"))
     temperature: float = field(default_factory=lambda: get_env_float("LLM_TEMPERATURE", 0.7))
     max_tokens: int = field(default_factory=lambda: get_env_int("LLM_MAX_TOKENS", 1000))
     timeout: int = field(default_factory=lambda: get_env_int("LLM_TIMEOUT", 30))
+    email: str = field(default_factory=lambda: get_env_str("API_EMAIL", ""))
+    password: str = field(default_factory=lambda: get_env_str("API_PASSWORD", ""))
+    use_payload_wrapper: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""

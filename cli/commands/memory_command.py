@@ -14,7 +14,7 @@ class MemoryCommand(BaseCommand):
     @property
     def description(self) -> str:
         """Command description."""
-        return "Show memory statistics or content. Usage: /memory [ID]"
+        return "Show memory statistics or content. Usage: /memory [ID|clean]"
 
     def execute(self, args: List[str]) -> bool:
         """Execute memory command."""
@@ -22,6 +22,8 @@ class MemoryCommand(BaseCommand):
 
         if not args:
             self._display_memory_stats(memory_id_map)
+        elif args[0].lower() == "clean":
+            self._clean_memory()
         else:
             self._display_memory_content(args[0], memory_id_map)
 
@@ -35,6 +37,15 @@ class MemoryCommand(BaseCommand):
             Dictionary mapping memory IDs to memory types.
         """
         return {1: "conversation"}
+
+    def _clean_memory(self) -> None:
+        """Clean all conversation memory."""
+        try:
+            self._orchestrator.reset_conversation()
+            print("\n✓ Memory cleaned successfully.")
+            print("All conversation history has been cleared.\n")
+        except Exception as e:
+            print(f"\n✗ Error cleaning memory: {e}\n")
 
     def _display_memory_stats(self, id_map: dict) -> None:
         """Display memory statistics with IDs."""
@@ -93,7 +104,9 @@ class MemoryCommand(BaseCommand):
     def _print_stats_footer(self) -> None:
         """Print statistics section footer."""
         print("-" * 60)
-        print("\nUsage: /memory <ID> to view content of a specific section")
+        print("\nUsage:")
+        print("  /memory <ID>    - View content of a specific section")
+        print("  /memory clean   - Clear all conversation history")
         print()
 
     def _display_memory_content(self, mem_id_str: str, id_map: dict) -> None:

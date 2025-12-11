@@ -1,10 +1,22 @@
 from __future__ import annotations
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 import pytest
 
-from .utils.config import load_configuration
-from .utils.api_client import ApiClient, generate_token
-from utils.logger import logger
+from utils.config import load_configuration
+from utils.api_client import ApiClient, generate_token
+from utils.logger import logger, reconfigure_logger, LogConfig
+
+
+def pytest_configure(config):
+    """
+    Called before test run starts.
+    Forces logger reinitialization to create a new log file.
+    """
+    reconfigure_logger()
 
 
 @pytest.fixture(scope="session")

@@ -50,9 +50,12 @@ def load_configuration() -> Dict[str, Any]:
     
     if 'api' not in service_prefixes:
         service_prefixes['api'] = '/api'
-    
+
     if 'ollama' not in service_prefixes:
         service_prefixes['ollama'] = '/ollama'
+
+    if 'embed' not in service_prefixes:
+        service_prefixes['embed'] = '/embed'
     
     additional_routes = {}
     
