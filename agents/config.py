@@ -19,6 +19,9 @@ class AgentConfig:
         name: Unique identifier for the agent
         description: Role and purpose of the agent
         tools: List of tool IDs that the agent can use (ToolId enum values or strings)
+            - None: No tools available
+            - []: All tools available (default)
+            - ["tool1", "tool2"]: Only specified tools available
         enable_logging: Enable/disable logging
         max_input_length: Maximum input length in characters
         max_output_length: Maximum output length in characters
@@ -30,7 +33,7 @@ class AgentConfig:
 
     name: str = "BaseAgent"
     description: str = "A general-purpose AI agent"
-    tools: List[Union[str, ToolId]] = field(default_factory=list)
+    tools: Optional[List[Union[str, ToolId]]] = field(default_factory=list)
     enable_logging: bool = True
     max_input_length: int = 10000
     max_output_length: int = 10000
@@ -47,11 +50,14 @@ class AgentConfig:
             raise ValueError("Max output length must be positive")
         if self.max_history_turns <= 0:
             raise ValueError("Max history turns must be positive")
-        if not isinstance(self.tools, list):
-            raise ValueError("Tools must be a list")
 
-        # Normalize tools to strings
-        self.tools = [self._normalize_tool_id(tool) for tool in self.tools]
+        # Validate tools: must be None or a list
+        if self.tools is not None and not isinstance(self.tools, list):
+            raise ValueError("Tools must be None or a list")
+
+        # Normalize tools to strings if not None
+        if self.tools is not None:
+            self.tools = [self._normalize_tool_id(tool) for tool in self.tools]
 
     def _normalize_tool_id(self, tool: Union[str, ToolId]) -> str:
         """
@@ -93,6 +99,8 @@ class AgentConfig:
         Returns:
             True if the tool is available, False otherwise
         """
+        if self.tools is None:
+            return False
         normalized_id = self._normalize_tool_id(tool_id)
         return normalized_id in self.tools
 
@@ -102,7 +110,12 @@ class AgentConfig:
 
         Args:
             tool_id: The tool ID to add (ToolId enum or string)
+
+        Raises:
+            ValueError: If tools is None (no tools allowed)
         """
+        if self.tools is None:
+            raise ValueError("Cannot add tool: this agent has no tool access (tools=None)")
         normalized_id = self._normalize_tool_id(tool_id)
         if normalized_id not in self.tools:
             self.tools.append(normalized_id)
@@ -114,6 +127,8 @@ class AgentConfig:
         Args:
             tool_id: The tool ID to remove (ToolId enum or string)
         """
+        if self.tools is None:
+            return  # Nothing to remove
         normalized_id = self._normalize_tool_id(tool_id)
         if normalized_id in self.tools:
             self.tools.remove(normalized_id)
@@ -123,6 +138,8 @@ class AgentConfig:
         Get the list of tool IDs as strings.
 
         Returns:
-            List of tool ID strings
+            List of tool ID strings. Empty list if tools is None.
         """
+        if self.tools is None:
+            return []
         return self.tools.copy()

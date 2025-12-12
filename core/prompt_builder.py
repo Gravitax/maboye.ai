@@ -17,16 +17,21 @@ class PromptBuilder:
     Constructs and formats prompts for the LLM.
     """
 
-    def __init__(self, system_prompt: str, tool_registry: ToolRegistry):
+    def __init__(self, system_prompt: str, tool_registry: ToolRegistry, allowed_tools: List[str] = None):
         """
         Initializes the PromptBuilder.
 
         Args:
             system_prompt: The base system prompt (role and instructions).
             tool_registry: The registry containing available tools.
+            allowed_tools: List of tool names to include.
+                - None: No tools available
+                - []: All tools available
+                - ["tool1", "tool2"]: Only specified tools available
         """
         self._system_prompt = system_prompt
         self._tool_registry = tool_registry
+        self._allowed_tools = allowed_tools
 
     def build_from_history(self, history: List[Message]) -> List[Message]:
         """
@@ -64,13 +69,29 @@ class PromptBuilder:
         """
         Generates the tool description part of the system prompt.
 
-        Formats the metadata of all registered tools in a way that the LLM
-        can understand and use.
+        Formats the metadata of registered tools in a way that the LLM
+        can understand and use. Filters tools based on allowed_tools.
 
         Returns:
             A string describing the available tools.
         """
-        tool_infos = self._tool_registry.get_all_tools_info()
+        # None means no tools available
+        if self._allowed_tools is None:
+            return "No tools are available."
+
+        all_tool_infos = self._tool_registry.get_all_tools_info()
+
+        # Empty list means all tools are available
+        if isinstance(self._allowed_tools, list) and len(self._allowed_tools) == 0:
+            tool_infos = all_tool_infos
+        # Non-empty list means filter to specified tools
+        elif isinstance(self._allowed_tools, list):
+            tool_infos = [
+                tool_info for tool_info in all_tool_infos
+                if tool_info['name'] in self._allowed_tools
+            ]
+        else:
+            tool_infos = []
 
         if not tool_infos:
             return "No tools are available."
@@ -104,13 +125,12 @@ class PromptBuilder:
 
     def _log_system_prompt(self, system_prompt: str) -> None:
         """Logs system prompt details."""
-        preview = system_prompt[:300] + "..." if len(system_prompt) > 300 else system_prompt
         logger.info(
             "PROMPT_BUILDER",
             "System prompt constructed",
             {
                 "length": len(system_prompt),
-                "preview": preview
+                "content": system_prompt
             }
         )
 
@@ -123,7 +143,6 @@ class PromptBuilder:
 
         for idx, msg in enumerate(history):
             content = msg.get("content", "")
-            content_preview = content[:150] if content else "[no content]"
 
             logger.debug(
                 "PROMPT_BUILDER",
@@ -131,7 +150,7 @@ class PromptBuilder:
                 {
                     "role": msg["role"],
                     "content_length": len(content) if content else 0,
-                    "content_preview": content_preview,
+                    "content": content if content else "[no content]",
                     "has_tool_calls": "tool_calls" in msg
                 }
             )

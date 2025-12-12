@@ -10,9 +10,9 @@ from agents.config import AgentConfig
 from agents.types import AgentOutput
 from agents.log_manager import LogAgentManager
 from core.llm_wrapper.llm_wrapper import LLMWrapper
-from core.prompt_builder import PromptBuilder
 from core.tool_scheduler import ToolScheduler
 from core.memory import MemoryManager
+from tools.tool_base import ToolRegistry
 
 
 class DefaultAgent(LogAgentManager, BaseAgent):
@@ -29,13 +29,13 @@ class DefaultAgent(LogAgentManager, BaseAgent):
         self,
         llm: LLMWrapper,
         tool_scheduler: ToolScheduler,
-        prompt_builder: PromptBuilder,
+        tool_registry: ToolRegistry,
         memory_manager: MemoryManager,
         config: AgentConfig,
     ):
         """Initializes the DefaultAgent, passing all dependencies to the parent."""
         self._log_initialization_start(config)
-        super().__init__(llm, tool_scheduler, prompt_builder, memory_manager, config)
+        super().__init__(llm, tool_scheduler, tool_registry, memory_manager, config)
         self._log_initialization_complete(config)
 
     def run(self, user_prompt: str) -> AgentOutput:

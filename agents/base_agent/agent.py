@@ -11,6 +11,7 @@ from core.llm_wrapper.llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from core.prompt_builder import PromptBuilder
 from core.memory import MemoryManager
+from tools.tool_base import ToolRegistry
 from agents.types import AgentOutput
 from agents.config import AgentConfig
 from agents.base_agent.llm_message_manager import LLMMessageAgentManager
@@ -48,7 +49,7 @@ class BaseAgent(ABC):
         self,
         llm: LLMWrapper,
         tool_scheduler: ToolScheduler,
-        prompt_builder: PromptBuilder,
+        tool_registry: ToolRegistry,
         memory_manager: MemoryManager,
         config: AgentConfig,
     ):
@@ -58,11 +59,29 @@ class BaseAgent(ABC):
         Args:
             llm: An instance of the LLM wrapper.
             tool_scheduler: An instance of the tool scheduler.
-            prompt_builder: An instance of the prompt builder.
+            tool_registry: The tool registry containing all available tools.
             memory_manager: An instance of the memory manager.
             config: The agent's configuration object.
         """
         self._config = config
+
+        # Create agent-specific prompt builder with filtered tools and custom system prompt
+        system_prompt = config.system_prompt or "You are a helpful AI assistant."
+
+        # Handle allowed_tools:
+        # - None: no tools available
+        # - []: all tools available
+        # - ["tool1", "tool2"]: only these tools available
+        if config.tools is None:
+            allowed_tools = None
+        else:
+            allowed_tools = config.get_tools()
+
+        prompt_builder = PromptBuilder(
+            system_prompt=system_prompt,
+            tool_registry=tool_registry,
+            allowed_tools=allowed_tools
+        )
 
         # Initialize specialized managers
         self._llm_message_manager = LLMMessageAgentManager(llm)

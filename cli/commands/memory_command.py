@@ -14,7 +14,7 @@ class MemoryCommand(BaseCommand):
     @property
     def description(self) -> str:
         """Command description."""
-        return "Show memory statistics or content. Usage: /memory [ID|clean]"
+        return "Show memory statistics or content. Usage: /memory [ID|clear]"
 
     def execute(self, args: List[str]) -> bool:
         """Execute memory command."""
@@ -22,8 +22,8 @@ class MemoryCommand(BaseCommand):
 
         if not args:
             self._display_memory_stats(memory_id_map)
-        elif args[0].lower() == "clean":
-            self._clean_memory()
+        elif args[0].lower() == "clear":
+            self._clear_memory()
         else:
             self._display_memory_content(args[0], memory_id_map)
 
@@ -38,14 +38,14 @@ class MemoryCommand(BaseCommand):
         """
         return {1: "conversation"}
 
-    def _clean_memory(self) -> None:
-        """Clean all conversation memory."""
+    def _clear_memory(self) -> None:
+        """Clear all conversation memory."""
         try:
             self._orchestrator.reset_conversation()
-            print("\n✓ Memory cleaned successfully.")
+            print("\n✓ Memory cleared successfully.")
             print("All conversation history has been cleared.\n")
         except Exception as e:
-            print(f"\n✗ Error cleaning memory: {e}\n")
+            print(f"\n✗ Error clearing memory: {e}\n")
 
     def _display_memory_stats(self, id_map: dict) -> None:
         """Display memory statistics with IDs."""
@@ -106,7 +106,7 @@ class MemoryCommand(BaseCommand):
         print("-" * 60)
         print("\nUsage:")
         print("  /memory <ID>    - View content of a specific section")
-        print("  /memory clean   - Clear all conversation history")
+        print("  /memory clear   - Clear all conversation history")
         print()
 
     def _display_memory_content(self, mem_id_str: str, id_map: dict) -> None:
@@ -136,7 +136,7 @@ class MemoryCommand(BaseCommand):
         try:
             return int(mem_id_str)
         except ValueError:
-            print(f"\nError: Invalid memory ID '{mem_id_str}'. Must be 1.\n")
+            print(f"\nError: Invalid memory ID '{mem_id_str}'.\n")
             return None
 
     def _validate_memory_id(self, mem_id: int, id_map: dict) -> bool:

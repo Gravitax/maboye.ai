@@ -33,66 +33,86 @@ class Orchestrator:
     def __init__(
         self,
         llm_config: Optional[LLMWrapperConfig] = None,
-        agent_config: Optional[AgentConfig] = None,
+        agents: Optional[List[Any]] = None,
     ):
         """
         Initializes the Orchestrator and all its components.
 
         Args:
             llm_config: Configuration for the LLM wrapper.
-            agent_config: Configuration for the agent.
+            agents: List of agents to use. If None, a default agent will be created.
         """
         self._llm: LLMWrapper
         self._memory_manager: MemoryManager
         self._tool_scheduler: ToolScheduler
-        self._prompt_builder: PromptBuilder
-        self._agent: DefaultAgent # Can be made configurable for different agent types
+        self._tool_registry: Any
+        self._agents: List[Any] = []
+        self._current_agent: Any = None
 
         self._llm_config = llm_config or LLMWrapperConfig()
-        self._agent_config = agent_config or AgentConfig()
 
         logger.info("ORCHESTRATOR", "Initializing all components...")
         self._setup_components()
+
+        if agents:
+            self._agents = agents
+            self._current_agent = agents[0] if agents else None
+            logger.info("ORCHESTRATOR", f"Using {len(agents)} provided agent(s).")
+        else:
+            logger.warning("ORCHESTRATOR", "No agents provided. Agent must be set later.")
+
         logger.info("ORCHESTRATOR", "All components initialized.")
 
     def _setup_components(self) -> None:
-        """Sets up the LLM, Memory, Tools, Prompt Builder, and Agent."""
+        """Sets up the LLM, Memory, Tools (shared components)."""
 
-        # 1. Initialize Memory Manager
+        # 1. Initialize Memory Manager (using default max_history_turns for now)
         self._memory_manager = MemoryManager(
-            conversation_size=self._agent_config.max_history_turns
+            conversation_size=10  # Default value, can be overridden by agent config
         )
         logger.info("ORCHESTRATOR", "Memory manager initialized.")
 
         # 2. Register all tools and get the registry
         register_all_tools()
-        tool_registry = get_registry()
-        logger.info("ORCHESTRATOR", "Tools registered.", {"count": len(tool_registry.list_tools())})
+        self._tool_registry = get_registry()
+        logger.info("ORCHESTRATOR", "Tools registered.", {"count": len(self._tool_registry.list_tools())})
 
         # 3. Initialize LLM Wrapper
         self._llm = LLMWrapper(self._llm_config)
         logger.info("ORCHESTRATOR", "LLM wrapper initialized.")
 
         # 4. Initialize Tool Scheduler
-        self._tool_scheduler = ToolScheduler(registry=tool_registry)
+        self._tool_scheduler = ToolScheduler(registry=self._tool_registry)
         logger.info("ORCHESTRATOR", "Tool scheduler initialized.")
 
-        # 5. Initialize Prompt Builder
-        self._prompt_builder = PromptBuilder(
-            system_prompt=self._agent_config.system_prompt,
-            tool_registry=tool_registry
-        )
-        logger.info("ORCHESTRATOR", "Prompt builder initialized.")
+    def get_components(self) -> tuple:
+        """
+        Get shared components for agent creation.
 
-        # 6. Initialize the Agent
-        self._agent = DefaultAgent(
-            llm=self._llm,
-            tool_scheduler=self._tool_scheduler,
-            prompt_builder=self._prompt_builder,
-            memory_manager=self._memory_manager,
-            config=self._agent_config,
+        Returns:
+            Tuple of (llm, tool_scheduler, tool_registry, memory_manager)
+        """
+        return (
+            self._llm,
+            self._tool_scheduler,
+            self._tool_registry,
+            self._memory_manager
         )
-        logger.info("ORCHESTRATOR", f"{self._agent_config.name} initialized.")
+
+    def set_agents(self, agents: List[Any]):
+        """
+        Set the list of agents to use.
+
+        Args:
+            agents: List of agents to use
+        """
+        if not agents:
+            logger.warning("ORCHESTRATOR", "Empty agent list provided.")
+            return
+
+        self._agents = agents
+        self._current_agent = agents[0]
+        logger.info("ORCHESTRATOR", f"Set {len(agents)} agent(s). Current agent: {agents[0]._config.name}")
 
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
@@ -104,9 +124,17 @@ class Orchestrator:
         Returns:
             An AgentOutput object containing the agent's response and metadata.
         """
-        logger.info("ORCHESTRATOR", "Processing user input.", {"input": user_input[:100]})
+        if not self._current_agent:
+            logger.error("ORCHESTRATOR", "No agent available to process input.")
+            return AgentOutput(
+                response="No agent is currently configured.",
+                success=False,
+                error="No agent available"
+            )
+
+        logger.info("ORCHESTRATOR", "Processing user input.", {"input": user_input})
         try:
-            agent_output = self._agent.run(user_input)
+            agent_output = self._current_agent.run(user_input)
             logger.info("ORCHESTRATOR", "User input processed successfully.")
             return agent_output
         except Exception as e:
@@ -138,7 +166,9 @@ class Orchestrator:
         Returns:
             A dictionary containing agent configuration details.
         """
-        return self._agent._config.model_dump() # Assuming AgentConfig can be dumped or converted
+        if not self._current_agent:
+            return {"error": "No agent configured"}
+        return self._current_agent._config.model_dump() # Assuming AgentConfig can be dumped or converted
 
     def get_tool_info(self) -> List[Dict[str, Any]]:
         """

@@ -95,13 +95,22 @@ class ToolsAgentManager:
             tool_name: Name of the tool to check.
 
         Returns:
-            True if tool is allowed or no tools configured (allow all), False otherwise.
+            True if tool is allowed, False otherwise.
+
+        Behavior:
+            - config.tools is None: No tools allowed -> False
+            - config.tools is []: All tools allowed -> True
+            - config.tools is ["tool1", "tool2"]: Only these tools -> check membership
         """
-        # If no tools configured, allow all tools
-        if not self._config.tools:
+        # None means no tools are allowed
+        if self._config.tools is None:
+            return False
+
+        # Empty list means all tools are allowed
+        if isinstance(self._config.tools, list) and len(self._config.tools) == 0:
             return True
 
-        # Check if tool is in allowed list
+        # Non-empty list means check if tool is in allowed list
         return self._config.has_tool(tool_name)
 
     def _create_rejection_result(self, tool_call: ToolCall) -> ToolResult:
@@ -115,7 +124,14 @@ class ToolsAgentManager:
             ToolResult indicating rejection.
         """
         tool_name = tool_call.get("name", "unknown")
-        allowed_tools = ", ".join(self._config.get_tools()) if self._config.tools else "none"
+
+        # Determine allowed tools message
+        if self._config.tools is None:
+            allowed_tools = "none - this agent has no tool access"
+        elif len(self._config.tools) == 0:
+            allowed_tools = "all tools (should not see this error)"
+        else:
+            allowed_tools = ", ".join(self._config.get_tools())
 
         return {
             "tool_call_id": tool_call.get("id", ""),

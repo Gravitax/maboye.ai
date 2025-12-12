@@ -49,10 +49,9 @@ class LogAgentManager:
         Args:
             user_prompt: The user's input prompt.
         """
-        prompt_preview = user_prompt[:100] + "..." if len(user_prompt) > 100 else user_prompt
         logger.info(
             "AGENT_LOG",
-            f"Starting run for prompt: '{prompt_preview}'",
+            f"Starting run for prompt: '{user_prompt}'",
             {"prompt_length": len(user_prompt)}
         )
 
@@ -108,14 +107,14 @@ class LogAgentManager:
             message: The LLM's response message.
         """
         has_tool_calls = bool(message.get("tool_calls"))
-        content_preview = (message.get("content", "")[:150] + "...") if message.get("content") else ""
+        content = message.get("content", "") or ""
 
         logger.info(
             "AGENT_LOG",
             "LLM response received",
             {
                 "has_content": bool(message.get("content")),
-                "content_preview": content_preview,
+                "content": content,
                 "has_tool_calls": has_tool_calls,
                 "tool_count": len(message.get("tool_calls", []))
             }
@@ -143,13 +142,12 @@ class LogAgentManager:
             tool_results: List of tool execution results.
         """
         for result in tool_results:
-            result_preview = str(result["result"])[:150]
             logger.debug(
                 "AGENT_LOG",
                 f"Tool '{result['tool_name']}' executed",
                 {
                     "success": result["success"],
                     "execution_time": result["execution_time"],
-                    "result_preview": result_preview
+                    "result": str(result["result"])
                 }
             )
