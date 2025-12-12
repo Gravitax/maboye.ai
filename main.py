@@ -21,29 +21,31 @@ class Application:
 
     def _register_agents(self):
         """
-        Register agents in the agent repository.
+        Register specialized agents in the agent repository.
 
-        Creates RegisteredAgent domain objects and saves them to the repository.
+        Creates RegisteredAgent domain objects from profiles and saves them.
+        Registers 3 specialized agents: CodeAgent, GitAgent, BashAgent
         """
+        from agents.profiles import ALL_PROFILES
+
         agent_repository = self.orchestrator.get_agent_repository()
 
-        # Create and register default agent
-        agent = RegisteredAgent.create_new(
-            name="DefaultAgent",
-            description="A general-purpose AI assistant that can help with various tasks",
-            authorized_tools=["read_file"],
-            system_prompt="""You are a helpful AI assistant with access to various tools.
-You can execute commands, read and write files, and perform various tasks to help users.
-Be concise, precise, and helpful in your responses.
-When using tools, explain what you're doing and why."""
-        )
+        # Register all specialized agents from profiles
+        for profile in ALL_PROFILES:
+            agent = RegisteredAgent.create_new(
+                name=profile["name"],
+                description=profile["description"],
+                authorized_tools=profile["authorized_tools"],
+                system_prompt=profile["system_prompt"]
+            )
 
-        agent_repository.save(agent)
+            agent_repository.save(agent)
 
-        logger.info("APP", "Agent registered", {
-            "agent_id": agent.get_agent_id(),
-            "agent_name": agent.get_agent_name()
-        })
+            logger.info("APP", "Agent registered", {
+                "agent_id": agent.get_agent_id(),
+                "agent_name": agent.get_agent_name(),
+                "tools_count": len(profile["authorized_tools"])
+            })
 
         return agent_repository
 

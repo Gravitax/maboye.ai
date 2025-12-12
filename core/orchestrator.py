@@ -118,9 +118,64 @@ class Orchestrator:
         """Get the execution service."""
         return self._execution_service
 
+    def _route_to_agent(self, user_input: str):
+        """
+        Route user input to the best agent using keyword matching.
+
+        Simple routing strategy based on keywords in user input.
+        Falls back to CodeAgent if no clear match.
+
+        Args:
+            user_input: User's message
+
+        Returns:
+            RegisteredAgent or None
+        """
+        user_lower = user_input.lower()
+
+        # Git keywords - route to GitAgent
+        git_keywords = [
+            'git', 'commit', 'branch', 'merge', 'push', 'pull',
+            'status', 'diff', 'log', 'stage', 'checkout', 'rebase'
+        ]
+        if any(keyword in user_lower for keyword in git_keywords):
+            agent = self._agent_repository.find_by_name("GitAgent")
+            if agent:
+                logger.info("ORCHESTRATOR", "Routed to GitAgent (git keywords detected)")
+                return agent
+
+        # Bash keywords - route to BashAgent
+        bash_keywords = [
+            'run', 'execute', 'command', 'shell', 'bash',
+            'ls', 'ps', 'kill', 'process', 'install',
+            'npm', 'pip', 'cargo', 'docker'
+        ]
+        if any(keyword in user_lower for keyword in bash_keywords):
+            agent = self._agent_repository.find_by_name("BashAgent")
+            if agent:
+                logger.info("ORCHESTRATOR", "Routed to BashAgent (bash keywords detected)")
+                return agent
+
+        # Default to CodeAgent for file/code operations
+        agent = self._agent_repository.find_by_name("CodeAgent")
+        if agent:
+            logger.info("ORCHESTRATOR", "Routed to CodeAgent (default for code operations)")
+            return agent
+
+        # Fallback: first active agent
+        active_agents = self._agent_repository.find_active()
+        if active_agents:
+            logger.warning("ORCHESTRATOR", "Using fallback routing (first active agent)")
+            return active_agents[0]
+
+        return None
+
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
         Process user input through the agent system.
+
+        Routes to appropriate agent based on input content,
+        then executes the selected agent.
 
         Args:
             user_input: User's message
@@ -132,18 +187,16 @@ class Orchestrator:
             "input_length": len(user_input)
         })
 
-        # Get first active agent
-        active_agents = self._agent_repository.find_active()
+        # Route to best agent
+        agent = self._route_to_agent(user_input)
 
-        if not active_agents:
-            logger.error("ORCHESTRATOR", "No active agents available")
+        if not agent:
+            logger.error("ORCHESTRATOR", "No agents available")
             return AgentOutput(
-                response="No active agent is currently available.",
+                response="No agents are currently available.",
                 success=False,
-                error="No active agents"
+                error="No agents"
             )
-
-        agent = active_agents[0]
 
         logger.info("ORCHESTRATOR", "Selected agent for execution", {
             "agent_id": agent.get_agent_id(),
