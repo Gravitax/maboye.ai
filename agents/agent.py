@@ -5,15 +5,13 @@ Refactored agent that uses the new domain-driven architecture directly.
 No longer depends on legacy MemoryManager or PromptBuilder.
 """
 
-from typing import Optional
-
 from core.logger import logger
 from core.llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import AgentIdentity, AgentCapabilities
 from core.services import AgentMemoryCoordinator, AgentPromptConstructor
-from agents.types import AgentOutput, Message
+from agents.types import AgentOutput
 
 
 class Agent:

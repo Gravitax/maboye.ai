@@ -6,7 +6,6 @@ Each tool wraps the corresponding file operation with proper validation
 and error handling.
 """
 
-from pathlib import Path
 from typing import List, Dict, Any
 
 from tools.tool_base import Tool, ToolMetadata, ToolParameter

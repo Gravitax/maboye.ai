@@ -24,6 +24,8 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+.claude
+
 # Virtual Environment
 venv/
 env/

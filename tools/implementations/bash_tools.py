@@ -5,7 +5,7 @@ Provides safe execution of shell commands and Git operations.
 Includes security measures like command whitelisting and timeout handling.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from tools.tool_base import Tool, ToolMetadata, ToolParameter
 from tools import shell, git_ops

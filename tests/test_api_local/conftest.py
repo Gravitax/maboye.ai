@@ -8,7 +8,7 @@ import pytest
 
 from utils.config import load_configuration
 from utils.api_client import ApiClient, generate_token
-from utils.logger import logger, reconfigure_logger, LogConfig
+from utils.logger import logger, reconfigure_logger
 
 
 def pytest_configure(config):

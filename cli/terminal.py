@@ -8,7 +8,7 @@ import sys
 from typing import Optional, Callable
 
 from core.logger import logger
-from cli.cli_utils import Color, Cursor, _print_formatted_message
+from cli.cli_utils import Color, _print_formatted_message
 from cli.command_manager import CommandManager
 
 

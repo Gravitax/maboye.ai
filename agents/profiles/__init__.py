@@ -1,3 +1,4 @@
+
 """
 Agent Profiles
 
@@ -5,21 +6,38 @@ Defines specialized agent configurations with specific tools and prompts.
 Each profile configures an agent for a particular domain expertise.
 """
 
-from agents.profiles.code_agent import CODE_AGENT_PROFILE
-from agents.profiles.git_agent import GIT_AGENT_PROFILE
-from agents.profiles.bash_agent import BASH_AGENT_PROFILE
+import os
+import json
+from core.logger import logger
 
+ALL_PROFILES = []
 
-# All available profiles
-ALL_PROFILES = [
-    CODE_AGENT_PROFILE,
-    GIT_AGENT_PROFILE,
-    BASH_AGENT_PROFILE
-]
+def _load_profiles_from_json():
+    """Load agent profiles from JSON files."""
+    profiles = []
+    profiles_dir = os.path.dirname(__file__)
 
+    if not os.path.exists(profiles_dir):
+        logger.warning("PROFILES", f"Profiles directory not found: {profiles_dir}")
+        return profiles
+
+    for filename in os.listdir(profiles_dir):
+        if filename.endswith(".json"):
+            file_path = os.path.join(profiles_dir, filename)
+            try:
+                with open(file_path, 'r') as f:
+                    profile = json.load(f)
+                    profiles.append(profile)
+                    logger.info("PROFILES", f"Loaded profile '{profile['name']}' from {filename}")
+            except Exception as e:
+                logger.error("PROFILES", f"Failed to load profile from {filename}", {"error": str(e)})
+    return profiles
+
+ALL_PROFILES = _load_profiles_from_json()
 
 def get_profile_by_name(name: str):
     """
+
     Get agent profile by name
 
     Args:
@@ -45,9 +63,6 @@ def get_all_profile_names():
 
 
 __all__ = [
-    'CODE_AGENT_PROFILE',
-    'GIT_AGENT_PROFILE',
-    'BASH_AGENT_PROFILE',
     'ALL_PROFILES',
     'get_profile_by_name',
     'get_all_profile_names'

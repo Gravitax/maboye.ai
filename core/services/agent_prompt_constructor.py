@@ -4,7 +4,7 @@ Agent Prompt Constructor
 Builds agent-specific prompts with caching and cross-agent context support.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 from core.domain.agent_capabilities import AgentCapabilities
 from core.domain.conversation_context import ConversationContext
