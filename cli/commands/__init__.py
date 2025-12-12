@@ -16,7 +16,7 @@ def get_all_commands() -> Dict[str, tuple]:
     from .memory_command import MemoryCommand
     from .reset_command import ResetCommand
     from .tools_command import ToolsCommand
-    from .agent_command import AgentCommand
+    from .agents_command import AgentsCommand
 
     commands = {}
 
@@ -29,8 +29,8 @@ def get_all_commands() -> Dict[str, tuple]:
     tools_cmd = ToolsCommand()
     commands["tools"] = (tools_cmd.execute, tools_cmd.description)
 
-    agent_cmd = AgentCommand()
-    commands["agent"] = (agent_cmd.execute, agent_cmd.description)
+    agents_cmd = AgentsCommand()
+    commands["agents"] = (agents_cmd.execute, agents_cmd.description)
 
     return commands
 
