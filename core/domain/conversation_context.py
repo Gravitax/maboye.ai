@@ -111,11 +111,11 @@ class ConversationContext:
         max_turns: int = None
     ) -> 'ConversationContext':
         """
-        Factory method to create context from memory manager.
+        Factory method to create context from memory repository.
 
         Args:
             agent_identity: Identity of the agent
-            memory_manager: MemoryManager instance to extract history from
+            memory_manager: Memory repository to extract history from
             max_turns: Maximum number of turns to include (None = all)
 
         Returns:
@@ -124,12 +124,15 @@ class ConversationContext:
         Example:
             context = ConversationContext.create_from_memory(
                 agent_identity=identity,
-                memory_manager=memory,
+                memory_manager=memory_repository,
                 max_turns=10
             )
         """
-        # Extract history from memory manager
-        history = memory_manager.get_conversation_history(max_turns=max_turns)
+        # Extract history from memory repository
+        history = memory_manager.get_conversation_history(
+            agent_id=agent_identity.agent_id,
+            max_turns=max_turns
+        )
 
         # Extract metadata
         metadata = {

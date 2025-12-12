@@ -3,13 +3,10 @@ Agent system for LLM-powered workflows
 
 This package provides a modular agent architecture with clean separation of concerns.
 
-Note: To avoid circular imports, BaseAgent and DefaultAgent are not imported by default.
-Import them explicitly when needed:
-    from agents.base_agent import BaseAgent, AgentError
-    from agents.default_agent import DefaultAgent
+Note: The new Agent implementation can be imported directly:
+    from agents.agent import Agent
 """
 
-from agents.config import AgentConfig
 from agents.types import (
     AgentInput,
     AgentOutput,
@@ -19,8 +16,6 @@ from agents.types import (
 )
 
 __all__ = [
-    # Configuration
-    "AgentConfig",
     # Types
     "AgentInput",
     "AgentOutput",

@@ -6,198 +6,276 @@ LLM wrapper, Memory Manager, Tool Scheduler, Prompt Builder, and the Agent itsel
 It provides a clean interface for the main application loop to interact with the agent system.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from core.logger import logger
 from core.llm_wrapper import LLMWrapper, LLMWrapperConfig
-from core.memory import MemoryManager
 from core.tool_scheduler import ToolScheduler
-from core.prompt_builder import PromptBuilder
 from tools.tool_base import get_registry
 from tools.implementations import register_all_tools
-from agents.default_agent import DefaultAgent
-from agents.config import AgentConfig
 from agents.types import AgentOutput
+from core.repositories import InMemoryMemoryRepository, InMemoryAgentRepository
+from core.services import AgentMemoryCoordinator, LRUCache, AgentExecutionService, ExecutionOptions, AgentFactory
 
 
 class Orchestrator:
     """
-    The central coordinator for the agent system.
+    Central coordinator for the multi-agent system.
 
-    Manages the lifecycle and interaction between the LLM, Memory, Tools,
-    Prompt Builder, and the Agent. It provides a simplified interface
-    for external components (like the main application) to interact
-    with the complex agent ecosystem.
+    Manages repositories, services, and execution of agents using
+    the domain-driven architecture.
+
+    Attributes:
+        _memory_repository: Memory persistence
+        _agent_repository: Agent persistence
+        _memory_coordinator: Memory coordination service
+        _agent_factory: Agent instance creation
+        _execution_service: Agent execution with metrics
     """
 
-    def __init__(
-        self,
-        llm_config: Optional[LLMWrapperConfig] = None,
-        agents: Optional[List[Any]] = None,
-    ):
+    def __init__(self, llm_config: Optional[LLMWrapperConfig] = None):
         """
-        Initializes the Orchestrator and all its components.
+        Initialize the orchestrator with all components.
 
         Args:
-            llm_config: Configuration for the LLM wrapper.
-            agents: List of agents to use. If None, a default agent will be created.
+            llm_config: Configuration for the LLM wrapper
         """
-        self._llm: LLMWrapper
-        self._memory_manager: MemoryManager
-        self._tool_scheduler: ToolScheduler
-        self._tool_registry: Any
-        self._agents: List[Any] = []
-        self._current_agent: Any = None
-
         self._llm_config = llm_config or LLMWrapperConfig()
 
-        logger.info("ORCHESTRATOR", "Initializing all components...")
+        # Core infrastructure
+        self._llm: LLMWrapper
+        self._tool_scheduler: ToolScheduler
+        self._tool_registry: Any
+
+        # Domain architecture components
+        self._memory_repository: InMemoryMemoryRepository
+        self._agent_repository: InMemoryAgentRepository
+        self._memory_coordinator: AgentMemoryCoordinator
+        self._agent_factory: AgentFactory
+        self._execution_service: AgentExecutionService
+
+        logger.info("ORCHESTRATOR", "Initializing orchestrator components")
         self._setup_components()
-
-        if agents:
-            self._agents = agents
-            self._current_agent = agents[0] if agents else None
-            logger.info("ORCHESTRATOR", f"Using {len(agents)} provided agent(s).")
-        else:
-            logger.warning("ORCHESTRATOR", "No agents provided. Agent must be set later.")
-
-        logger.info("ORCHESTRATOR", "All components initialized.")
+        logger.info("ORCHESTRATOR", "Orchestrator initialized successfully")
 
     def _setup_components(self) -> None:
-        """Sets up the LLM, Memory, Tools (shared components)."""
+        """Setup all orchestrator components in correct order."""
 
-        # 1. Initialize Memory Manager (using default max_history_turns for now)
-        self._memory_manager = MemoryManager(
-            conversation_size=10  # Default value, can be overridden by agent config
+        # 1. Initialize repositories
+        self._memory_repository = InMemoryMemoryRepository()
+        self._agent_repository = InMemoryAgentRepository()
+        logger.info("ORCHESTRATOR", "Repositories initialized")
+
+        # 2. Initialize memory coordinator with LRU cache
+        cache_strategy = LRUCache(max_size=100)
+        self._memory_coordinator = AgentMemoryCoordinator(
+            memory_repository=self._memory_repository,
+            cache_strategy=cache_strategy
         )
-        logger.info("ORCHESTRATOR", "Memory manager initialized.")
+        logger.info("ORCHESTRATOR", "Memory coordinator initialized")
 
-        # 2. Register all tools and get the registry
+        # 3. Register tools
         register_all_tools()
         self._tool_registry = get_registry()
-        logger.info("ORCHESTRATOR", "Tools registered.", {"count": len(self._tool_registry.list_tools())})
+        logger.info("ORCHESTRATOR", "Tools registered", {
+            "count": len(self._tool_registry.list_tools())
+        })
 
-        # 3. Initialize LLM Wrapper
+        # 4. Initialize LLM wrapper
         self._llm = LLMWrapper(self._llm_config)
-        logger.info("ORCHESTRATOR", "LLM wrapper initialized.")
+        logger.info("ORCHESTRATOR", "LLM wrapper initialized")
 
-        # 4. Initialize Tool Scheduler
+        # 5. Initialize tool scheduler
         self._tool_scheduler = ToolScheduler(registry=self._tool_registry)
-        logger.info("ORCHESTRATOR", "Tool scheduler initialized.")
+        logger.info("ORCHESTRATOR", "Tool scheduler initialized")
 
-    def get_components(self) -> tuple:
-        """
-        Get shared components for agent creation.
-
-        Returns:
-            Tuple of (llm, tool_scheduler, tool_registry, memory_manager)
-        """
-        return (
-            self._llm,
-            self._tool_scheduler,
-            self._tool_registry,
-            self._memory_manager
+        # 6. Initialize agent factory
+        self._agent_factory = AgentFactory(
+            llm=self._llm,
+            tool_scheduler=self._tool_scheduler,
+            tool_registry=self._tool_registry,
+            memory_coordinator=self._memory_coordinator
         )
+        logger.info("ORCHESTRATOR", "Agent factory initialized")
 
-    def set_agents(self, agents: List[Any]):
-        """
-        Set the list of agents to use.
+        # 7. Initialize execution service
+        self._execution_service = AgentExecutionService(
+            agent_repository=self._agent_repository,
+            memory_coordinator=self._memory_coordinator,
+            agent_factory=self._agent_factory
+        )
+        logger.info("ORCHESTRATOR", "Execution service initialized")
 
-        Args:
-            agents: List of agents to use
-        """
-        if not agents:
-            logger.warning("ORCHESTRATOR", "Empty agent list provided.")
-            return
+    def get_agent_repository(self) -> InMemoryAgentRepository:
+        """Get the agent repository."""
+        return self._agent_repository
 
-        self._agents = agents
-        self._current_agent = agents[0]
-        logger.info("ORCHESTRATOR", f"Set {len(agents)} agent(s). Current agent: {agents[0]._config.name}")
+    def get_memory_coordinator(self) -> AgentMemoryCoordinator:
+        """Get the memory coordinator."""
+        return self._memory_coordinator
+
+    def get_execution_service(self) -> AgentExecutionService:
+        """Get the execution service."""
+        return self._execution_service
 
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
-        Processes a user's input through the agent system.
+        Process user input through the agent system.
 
         Args:
-            user_input: The raw text input from the user.
+            user_input: User's message
 
         Returns:
-            An AgentOutput object containing the agent's response and metadata.
+            AgentOutput with response and metadata
         """
-        if not self._current_agent:
-            logger.error("ORCHESTRATOR", "No agent available to process input.")
+        logger.info("ORCHESTRATOR", "Processing user input", {
+            "input_length": len(user_input)
+        })
+
+        # Get first active agent
+        active_agents = self._agent_repository.find_active()
+
+        if not active_agents:
+            logger.error("ORCHESTRATOR", "No active agents available")
             return AgentOutput(
-                response="No agent is currently configured.",
+                response="No active agent is currently available.",
                 success=False,
-                error="No agent available"
+                error="No active agents"
             )
 
-        logger.info("ORCHESTRATOR", "Processing user input.", {"input": user_input})
+        agent = active_agents[0]
+
+        logger.info("ORCHESTRATOR", "Selected agent for execution", {
+            "agent_id": agent.get_agent_id(),
+            "agent_name": agent.get_agent_name()
+        })
+
         try:
-            agent_output = self._current_agent.run(user_input)
-            logger.info("ORCHESTRATOR", "User input processed successfully.")
-            return agent_output
+            # Execute via service with metrics
+            execution_options = ExecutionOptions(
+                include_metrics=True
+            )
+
+            result = self._execution_service.execute_agent(
+                agent_id=agent.get_agent_id(),
+                user_input=user_input,
+                execution_options=execution_options
+            )
+
+            logger.info("ORCHESTRATOR", "Execution completed", {
+                "agent_name": result.agent_name,
+                "success": result.success,
+                "execution_time": f"{result.execution_time_seconds:.3f}s"
+            })
+
+            return result.output
+
         except Exception as e:
-            logger.error("ORCHESTRATOR", "Error processing user input.", {"error": str(e)})
+            logger.error("ORCHESTRATOR", "Execution error", {
+                "agent_name": agent.get_agent_name(),
+                "error": str(e)
+            })
             return AgentOutput(
-                response=f"An internal orchestrator error occurred: {e}",
+                response=f"Execution error: {e}",
                 success=False,
                 error=str(e)
             )
 
-    def reset_conversation(self) -> None:
-        """Clears the conversation history in the memory manager."""
-        logger.info("ORCHESTRATOR", "Resetting conversation.")
-        self._memory_manager.clear_conversation()
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the orchestrator state.
+
+        Returns:
+            Dictionary with agents, memory, and execution stats
+        """
+        return {
+            "agents": {
+                "total": self._agent_repository.count(),
+                "active": len(self._agent_repository.find_active())
+            },
+            "memory": self._memory_coordinator.get_memory_stats(),
+            "execution": self._execution_service.get_execution_stats()
+        }
 
     def get_memory_stats(self) -> Dict[str, Any]:
         """
-        Retrieves statistics from the memory manager.
+        Get memory statistics formatted for the /memory command.
 
         Returns:
-            A dictionary of memory statistics.
+            Dictionary with conversation stats
         """
-        return self._memory_manager.get_stats()
+        active_agents = self._agent_repository.find_active()
 
-    def get_agent_info(self) -> Dict[str, Any]:
-        """
-        Retrieves information about the configured agent.
+        if not active_agents:
+            return {
+                "conversation": {
+                    "size": 0,
+                    "is_empty": True
+                }
+            }
 
-        Returns:
-            A dictionary containing agent configuration details.
-        """
-        if not self._current_agent:
-            return {"error": "No agent configured"}
-        return self._current_agent._config.model_dump() # Assuming AgentConfig can be dumped or converted
+        agent = active_agents[0]
+        agent_id = agent.get_agent_id()
 
-    def get_tool_info(self) -> List[Dict[str, Any]]:
-        """
-        Retrieves information about all registered tools.
+        all_turns = self._memory_repository.get_conversation_history(
+            agent_id=agent_id,
+            max_turns=None
+        )
 
-        Returns:
-            A list of dictionaries, each describing a tool.
-        """
-        return get_registry().get_all_tools_info()
-
-    def get_memory_content(self, memory_type_str: str) -> Optional[List[Dict[str, Any]]]:
-        """
-        Retrieves the content of a specific memory type.
-
-        Args:
-            memory_type_str: Memory type name (conversation)
-
-        Returns:
-            List of memory entries or None if invalid type
-        """
-        from core.memory import MemoryType
-
-        memory_type_map = {
-            "conversation": MemoryType.CONVERSATION
+        return {
+            "conversation": {
+                "size": len(all_turns),
+                "is_empty": len(all_turns) == 0
+            }
         }
 
-        if memory_type_str.lower() not in memory_type_map:
-            return None
+    def reset_conversation(self) -> None:
+        """Clear all conversation memory for active agents."""
+        active_agents = self._agent_repository.find_active()
 
-        memory_type = memory_type_map[memory_type_str.lower()]
-        memory = self._memory_manager.get(memory_type)
-        return memory.get_all()
+        for agent in active_agents:
+            agent_id = agent.get_agent_id()
+            self._memory_coordinator.clear_agent_memory(agent_id)
+            logger.info("ORCHESTRATOR", f"Cleared memory for agent {agent.get_agent_name()}")
+
+    def get_memory_content(self, mem_type: str) -> list:
+        """
+        Get memory content for a specific type.
+
+        Args:
+            mem_type: Type of memory to retrieve (e.g., 'conversation')
+
+        Returns:
+            List of memory entries
+        """
+        if mem_type != "conversation":
+            return []
+
+        active_agents = self._agent_repository.find_active()
+
+        if not active_agents:
+            return []
+
+        agent = active_agents[0]
+        agent_id = agent.get_agent_id()
+
+        # Get all conversation turns
+        turns = self._memory_repository.get_conversation_history(
+            agent_id=agent_id,
+            max_turns=None
+        )
+
+        # Format turns for display
+        formatted_entries = []
+        for turn in turns:
+            formatted_entries.append({
+                "timestamp": turn.get("timestamp", "N/A"),
+                "data": {
+                    "role": turn.get("role", "unknown"),
+                    "content": turn.get("content", ""),
+                    "context": turn.get("metadata", {})
+                },
+                "metadata": turn.get("metadata", {})
+            })
+
+        return formatted_entries

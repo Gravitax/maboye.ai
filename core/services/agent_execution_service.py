@@ -20,6 +20,11 @@ from core.services.service_types import (
 )
 from agents.types import AgentOutput
 
+# Import TYPE_CHECKING to avoid circular import
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.services.agent_factory import AgentFactory
+
 
 class AgentExecutionService:
     """
@@ -35,12 +40,14 @@ class AgentExecutionService:
     Attributes:
         _agent_repository: Repository for agent access
         _memory_coordinator: Coordinator for memory management
+        _agent_factory: Factory for creating agent instances (optional)
     """
 
     def __init__(
         self,
         agent_repository: AgentRepository,
-        memory_coordinator: AgentMemoryCoordinator
+        memory_coordinator: AgentMemoryCoordinator,
+        agent_factory: Optional['AgentFactory'] = None
     ):
         """
         Initialize execution service.
@@ -48,9 +55,11 @@ class AgentExecutionService:
         Args:
             agent_repository: Repository for agent persistence
             memory_coordinator: Coordinator for memory management
+            agent_factory: Optional factory for creating and executing agents
         """
         self._agent_repository = agent_repository
         self._memory_coordinator = memory_coordinator
+        self._agent_factory = agent_factory
 
     def execute_agent(
         self,
@@ -112,22 +121,35 @@ class AgentExecutionService:
 
         try:
             # Execute the agent
-            # Note: In current architecture, agents are created separately
-            # This is a placeholder for future integration
-            logger.info(
-                "EXECUTION_SERVICE",
-                f"Executing agent {agent.get_agent_name()}",
-                execution_context
-            )
+            if self._agent_factory:
+                # Use agent factory to create and execute agent instance
+                logger.info(
+                    "EXECUTION_SERVICE",
+                    f"Executing agent {agent.get_agent_name()} with factory",
+                    execution_context
+                )
 
-            # TODO: Execute actual agent instance
-            # For now, return a success output as placeholder
-            output = AgentOutput(
-                response="Agent execution successful",
-                success=True,
-                error=None
-            )
-            success = True
+                # Create agent instance from RegisteredAgent
+                agent_instance = self._agent_factory.create_agent(agent)
+
+                # Execute the agent with user input
+                output = agent_instance.run(user_input)
+                success = output.success
+
+            else:
+                # Fallback: No factory available, return placeholder
+                logger.warning(
+                    "EXECUTION_SERVICE",
+                    f"No agent factory available, returning placeholder for {agent.get_agent_name()}",
+                    execution_context
+                )
+
+                output = AgentOutput(
+                    response="Agent execution successful (placeholder - no factory configured)",
+                    success=True,
+                    error=None
+                )
+                success = True
 
         except Exception as e:
             logger.error(

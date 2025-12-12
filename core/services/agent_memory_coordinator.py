@@ -12,7 +12,6 @@ from core.domain.agent_identity import AgentIdentity
 from core.domain.conversation_context import ConversationContext
 from core.domain.cross_agent_context import CrossAgentContext
 from core.services.cache_strategy import CacheStrategy, LRUCache
-from core.memory import MemoryManager
 
 
 class AgentMemoryCoordinator:
@@ -28,7 +27,6 @@ class AgentMemoryCoordinator:
     Attributes:
         _memory_repository: Repository for persistent memory storage
         _cache: Cache strategy for contexts
-        _memory_managers: Dictionary of active memory managers per agent
     """
 
     def __init__(
@@ -45,32 +43,6 @@ class AgentMemoryCoordinator:
         """
         self._memory_repository = memory_repository
         self._cache = cache_strategy or LRUCache(max_size=100)
-        self._memory_managers: Dict[str, MemoryManager] = {}
-
-    def get_or_create_memory_manager(
-        self,
-        agent_identity: AgentIdentity
-    ) -> MemoryManager:
-        """
-        Get or create a memory manager for an agent.
-
-        Uses lazy loading and caching for performance.
-
-        Args:
-            agent_identity: Identity of the agent
-
-        Returns:
-            MemoryManager instance for the agent
-        """
-        agent_id = agent_identity.agent_id
-
-        if agent_id not in self._memory_managers:
-            memory_manager = MemoryManager(
-                conversation_size=10  # Default size, can be overridden
-            )
-            self._memory_managers[agent_id] = memory_manager
-
-        return self._memory_managers[agent_id]
 
     def get_conversation_context(
         self,
@@ -205,10 +177,6 @@ class AgentMemoryCoordinator:
             # Invalidate cache
             self._invalidate_agent_cache(agent_id)
 
-            # Remove memory manager if exists
-            if agent_id in self._memory_managers:
-                del self._memory_managers[agent_id]
-
         return success
 
     def cleanup_inactive_memories(
@@ -261,7 +229,6 @@ class AgentMemoryCoordinator:
             Dictionary with memory stats
         """
         return {
-            'active_memory_managers': len(self._memory_managers),
             'cache_stats': self._cache.get_stats(),
             'total_agents_with_memory': len(self._memory_repository.get_all_agent_ids())
         }
@@ -282,7 +249,6 @@ class AgentMemoryCoordinator:
         """String representation for logging."""
         return (
             f"AgentMemoryCoordinator("
-            f"managers={len(self._memory_managers)}, "
             f"cache={self._cache})"
         )
 
@@ -290,6 +256,5 @@ class AgentMemoryCoordinator:
         """Detailed representation for debugging."""
         return (
             f"AgentMemoryCoordinator("
-            f"memory_managers={len(self._memory_managers)}, "
             f"cache={repr(self._cache)})"
         )
