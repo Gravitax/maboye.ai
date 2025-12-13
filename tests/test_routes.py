@@ -22,7 +22,7 @@ sys.path.insert(0, str(project_root))
 
 load_dotenv(project_root / ".env")
 
-from core.logger import logger
+from ..core.logger import logger
 
 
 def get_base_url() -> str:

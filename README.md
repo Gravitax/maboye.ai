@@ -1,4 +1,4 @@
-# Gemini CLI Agent Framework
+# maboye.AI
 
 This project is a Python-based framework for creating and running autonomous agents through a command-line interface (CLI).
 It features a modular architecture that separates core logic, agent definitions, tools, and the user interface.

@@ -98,3 +98,28 @@ class LLMEmbeddingResponse(BaseModel):
     data: List[LLMEmbeddingData]
     model: str
     usage: Optional[LLMUsage] = None
+
+
+class LLMTestPlanRequest(BaseModel):
+    """Request for a test execution plan."""
+    test_name: str
+
+
+class LLMActionStep(BaseModel):
+    """Single action to execute"""
+    tool_name: str
+    arguments: dict
+    description: str
+
+
+class LLMExecutionStep(BaseModel):
+    """Step containing one or more actions"""
+    step_number: int
+    description: str
+    actions: List[LLMActionStep]
+    depends_on: Optional[int] = None
+
+
+class LLMTestPlanResponse(BaseModel):
+    """Response with a test execution plan."""
+    steps: List[LLMExecutionStep]

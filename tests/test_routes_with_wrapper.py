@@ -15,7 +15,7 @@ import urllib3
 # Disable SSL warnings for testing with self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-project_root = Path(__file__).resolve().parent.parent.parent
+project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 load_dotenv(project_root / ".env")

@@ -6,6 +6,7 @@ LLM wrapper, Memory Manager, Tool Scheduler, Prompt Builder, and the Agent itsel
 It provides a clean interface for the main application loop to interact with the agent system.
 """
 
+import json
 from typing import Optional, Dict, Any
 
 from core.logger import logger
@@ -118,58 +119,6 @@ class Orchestrator:
         """Get the execution service."""
         return self._execution_service
 
-    def _route_to_agent(self, user_input: str):
-        """
-        Route user input to the best agent using keyword matching.
-
-        Simple routing strategy based on keywords in user input.
-        Falls back to CodeAgent if no clear match.
-
-        Args:
-            user_input: User's message
-
-        Returns:
-            RegisteredAgent or None
-        """
-        user_lower = user_input.lower()
-
-        # Git keywords - route to GitAgent
-        git_keywords = [
-            'git', 'commit', 'branch', 'merge', 'push', 'pull',
-            'status', 'diff', 'log', 'stage', 'checkout', 'rebase'
-        ]
-        if any(keyword in user_lower for keyword in git_keywords):
-            agent = self._agent_repository.find_by_name("GitAgent")
-            if agent:
-                logger.info("ORCHESTRATOR", "Routed to GitAgent (git keywords detected)")
-                return agent
-
-        # Bash keywords - route to BashAgent
-        bash_keywords = [
-            'run', 'execute', 'command', 'shell', 'bash',
-            'ls', 'ps', 'kill', 'process', 'install',
-            'npm', 'pip', 'cargo', 'docker'
-        ]
-        if any(keyword in user_lower for keyword in bash_keywords):
-            agent = self._agent_repository.find_by_name("BashAgent")
-            if agent:
-                logger.info("ORCHESTRATOR", "Routed to BashAgent (bash keywords detected)")
-                return agent
-
-        # Default to CodeAgent for file/code operations
-        agent = self._agent_repository.find_by_name("CodeAgent")
-        if agent:
-            logger.info("ORCHESTRATOR", "Routed to CodeAgent (default for code operations)")
-            return agent
-
-        # Fallback: first active agent
-        active_agents = self._agent_repository.find_active()
-        if active_agents:
-            logger.warning("ORCHESTRATOR", "Using fallback routing (first active agent)")
-            return active_agents[0]
-
-        return None
-
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
         Process user input through the agent system.
@@ -187,49 +136,22 @@ class Orchestrator:
             "input_length": len(user_input)
         })
 
-        # Route to best agent
-        agent = self._route_to_agent(user_input)
-
-        if not agent:
-            logger.error("ORCHESTRATOR", "No agents available")
-            return AgentOutput(
-                response="No agents are currently available.",
-                success=False,
-                error="No agents"
-            )
-
-        logger.info("ORCHESTRATOR", "Selected agent for execution", {
-            "agent_id": agent.get_agent_id(),
-            "agent_name": agent.get_agent_name()
-        })
-
+        # For now, always use the test workflow
+        test_name = user_input.strip()
+        logger.info("ORCHESTRATOR", f"Executing test plan: {test_name}")
         try:
-            # Execute via service with metrics
-            execution_options = ExecutionOptions(
-                include_metrics=True
-            )
-
-            result = self._execution_service.execute_agent(
-                agent_id=agent.get_agent_id(),
-                user_input=user_input,
-                execution_options=execution_options
-            )
-
-            logger.info("ORCHESTRATOR", "Execution completed", {
-                "agent_name": result.agent_name,
-                "success": result.success,
-                "execution_time": f"{result.execution_time_seconds:.3f}s"
-            })
-
-            return result.output
-
-        except Exception as e:
-            logger.error("ORCHESTRATOR", "Execution error", {
-                "agent_name": agent.get_agent_name(),
-                "error": str(e)
-            })
+            plan = self._llm.test(test_name)
+            # For now, just return the plan as a string
+            # In the future, this will trigger the plan execution workflow
+            response_str = json.dumps(plan.model_dump(), indent=2)
             return AgentOutput(
-                response=f"Execution error: {e}",
+                response=f"Received test plan '{test_name}':\n{response_str}",
+                success=True
+            )
+        except Exception as e:
+            logger.error("ORCHESTRATOR", "Test plan execution failed", {"error": str(e)})
+            return AgentOutput(
+                response=f"Error executing test plan: {e}",
                 success=False,
                 error=str(e)
             )

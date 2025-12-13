@@ -125,7 +125,7 @@ class OllamaGenerateResponse(BaseModel):
 class OllamaEmbedRequest(BaseModel):
     """Request for Ollama embed endpoint."""
     model: str
-    input: str
+    input: List[str]
 
 
 class OllamaEmbedResponse(BaseModel):
@@ -141,7 +141,7 @@ class OllamaTagsResponse(BaseModel):
 class EmbeddingRequest(BaseModel):
     """Request for embedding generation."""
     model: str
-    input: str
+    input: List[str]
     encoding_format: str = "float"
 
 
@@ -181,3 +181,28 @@ class SignInResponse(BaseModel):
     """Response for user sign-in."""
     token: str
     user: User
+
+
+class TestPlanRequest(BaseModel):
+    """Request for a test execution plan."""
+    test_name: str
+
+
+class ActionStep(BaseModel):
+    """Single action to execute"""
+    tool_name: str
+    arguments: dict
+    description: str
+
+
+class ExecutionStep(BaseModel):
+    """Step containing one or more actions"""
+    step_number: int
+    description: str
+    actions: List[ActionStep]
+    depends_on: Optional[int] = None
+
+
+class TestPlanResponse(BaseModel):
+    """Response with a test execution plan."""
+    steps: List[ExecutionStep]
