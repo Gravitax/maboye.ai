@@ -33,12 +33,12 @@ def generate_test_plan(request: TestPlanRequest) -> TestPlanResponse:
         steps = [
             ExecutionStep(
                 step_number=1,
-                description="Read main.py to understand structure",
+                description="Read tests/toto.py to understand structure",
                 actions=[
                     ActionStep(
                         tool_name="read_file",
-                        arguments={"file_path": "main.py"},
-                        description="Read main.py contents"
+                        arguments={"file_path": "tests/toto.py"},
+                        description="Read tests/toto.py contents"
                     )
                 ]
             )
@@ -53,6 +53,34 @@ def generate_test_plan(request: TestPlanRequest) -> TestPlanResponse:
                         tool_name="write_file",
                         arguments={"file_path": "./hello_world.py", "content": "print('hello _world')"},
                         description="Write hello_world.py contents"
+                    )
+                ]
+            )
+        ]
+    elif request.test_name == "ls":
+        steps = [
+            ExecutionStep(
+                step_number=1,
+                description="List files in the current directory",
+                actions=[
+                    ActionStep(
+                        tool_name="list_files",
+                        arguments={"dir_path": "."},
+                        description="Execute ls ."
+                    )
+                ]
+            )
+        ]
+    elif request.test_name == "pwd":
+        steps = [
+            ExecutionStep(
+                step_number=1,
+                description="Print the current working directory",
+                actions=[
+                    ActionStep(
+                        tool_name="bash",
+                        arguments={"command": "pwd"},
+                        description="Execute pwd"
                     )
                 ]
             )

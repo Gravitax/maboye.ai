@@ -2,28 +2,6 @@
 Service Layer
 
 Business logic services for agent system.
-
-Services:
-    - AgentMemoryCoordinator: Coordinates memory access across agents
-    - AgentPromptConstructor: Builds agent-specific prompts
-    - AgentExecutionService: Executes agents with metrics and traceability
-    - AgentFactory: Creates BaseAgent instances from RegisteredAgent domain objects
-
-Types:
-    - ExecutionOptions: Options for agent execution
-    - AgentExecutionResult: Result of agent execution
-    - CacheStrategy, LRUCache: Caching strategies
-
-Exceptions:
-    - AgentNotFoundError: Agent not found in repository
-    - AgentInactiveError: Agent is inactive
-    - AgentExecutionError: Agent execution failed
-
-Note: To avoid circular imports, import these explicitly when needed:
-    from core.services.agent_memory_coordinator import AgentMemoryCoordinator
-    from core.services.agent_prompt_constructor import AgentPromptConstructor
-    from core.services.agent_execution_service import AgentExecutionService
-    from core.services.agent_factory import AgentFactory
 """
 
 # Cache strategies
@@ -34,6 +12,8 @@ from core.services.agent_memory_coordinator import AgentMemoryCoordinator
 from core.services.agent_prompt_constructor import AgentPromptConstructor
 from core.services.agent_execution_service import AgentExecutionService
 from core.services.agent_factory import AgentFactory
+from core.services.plan_execution_service import PlanExecutionService, PlanExecutionError
+from core.services.plan_parser import parse_json_to_plan, PlanParseError
 
 # Types
 from core.services.service_types import (
@@ -53,6 +33,8 @@ __all__ = [
     'AgentPromptConstructor',
     'AgentExecutionService',
     'AgentFactory',
+    'PlanExecutionService',
+    'parse_json_to_plan',
     # Types
     'ExecutionOptions',
     'AgentExecutionResult',
@@ -60,4 +42,6 @@ __all__ = [
     'AgentNotFoundError',
     'AgentInactiveError',
     'AgentExecutionError',
+    'PlanExecutionError',
+    'PlanParseError',
 ]

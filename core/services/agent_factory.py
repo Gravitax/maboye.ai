@@ -12,7 +12,6 @@ from core.llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import RegisteredAgent
-from agents.agent import Agent
 from core.services.agent_memory_coordinator import AgentMemoryCoordinator
 
 
@@ -50,7 +49,7 @@ class AgentFactory:
         self._memory_coordinator = memory_coordinator
 
         # Cache of created agent instances (agent_id -> Agent)
-        self._agent_instances: dict[str, Agent] = {}
+        self._agent_instances: dict[str, 'Agent'] = {}
 
         logger.info("AGENT_FACTORY", "Agent factory initialized")
 
@@ -58,7 +57,7 @@ class AgentFactory:
         self,
         registered_agent: RegisteredAgent,
         force_recreate: bool = False
-    ) -> Agent:
+    ) -> 'Agent':
         """
         Create an Agent instance from a RegisteredAgent domain object.
 
@@ -72,6 +71,7 @@ class AgentFactory:
         Raises:
             ValueError: If registered_agent is invalid
         """
+        from agents.agent import Agent
         if not registered_agent:
             raise ValueError("registered_agent cannot be None")
 
@@ -111,7 +111,7 @@ class AgentFactory:
 
         return agent_instance
 
-    def get_cached_agent(self, agent_id: str) -> Optional[Agent]:
+    def get_cached_agent(self, agent_id: str) -> Optional['Agent']:
         """
         Get a cached agent instance by ID.
 

@@ -142,15 +142,17 @@ class RegisteredAgent:
                 f"metadata must be a dict, got {type(self.metadata)}"
             )
 
-    @staticmethod
+    @classmethod
     def create_new(
+        cls,
         name: str,
         description: str,
         authorized_tools: list,
         system_prompt: str,
         max_reasoning_turns: int = 10,
         max_memory_turns: int = 10,
-        specialization_tags: Optional[list] = None
+        specialization_tags: Optional[list] = None,
+        is_active: bool = True
     ) -> 'RegisteredAgent':
         """
         Factory method to create a new registered agent.
@@ -185,6 +187,7 @@ class RegisteredAgent:
 
         capabilities = AgentCapabilities(
             description=description,
+            system_prompt=system_prompt,
             authorized_tools=authorized_tools,
             max_reasoning_turns=max_reasoning_turns,
             max_memory_turns=max_memory_turns,

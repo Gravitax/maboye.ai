@@ -25,6 +25,7 @@ class AgentCapabilities:
     """
 
     description: str
+    system_prompt: str = "" # New attribute for the system prompt
     authorized_tools: List[str] = field(default_factory=list)
     max_reasoning_turns: int = 10
     max_memory_turns: int = 10

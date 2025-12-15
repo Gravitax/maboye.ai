@@ -111,7 +111,7 @@ class WriteFileTool(Tool):
         file_path: str,
         content: str,
         create_dirs: bool = True
-    ) -> bool:
+    ) -> str:
         """
         Execute file write operation
 
@@ -121,9 +121,10 @@ class WriteFileTool(Tool):
             create_dirs: Whether to create parent directories
 
         Returns:
-            True if successful
+            A string indicating successful write operation.
         """
-        return file_ops.write_file(file_path, content, create_dirs)
+        file_ops.write_file(file_path, content, create_dirs)
+        return f"Successfully wrote to {file_path}"
 
 
 class EditFileTool(Tool):
@@ -255,7 +256,7 @@ class ListFilesTool(Tool):
         Returns:
             List of entries with metadata
         """
-        from tools import search
+        from .. import search
         return search.list_directory(directory, include_hidden, files_only, dirs_only)
 
 

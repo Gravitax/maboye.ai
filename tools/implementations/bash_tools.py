@@ -101,8 +101,8 @@ class BashTool(Tool):
         return {
             'stdout': result.stdout,
             'stderr': result.stderr,
-            'return_code': result.return_code,
-            'success': result.return_code == 0
+            'return_code': result.returncode,
+            'success': result.returncode == 0
         }
 
     def _validate_command_safety(self, command: str):

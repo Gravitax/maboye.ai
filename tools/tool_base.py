@@ -198,6 +198,11 @@ class Tool(ABC):
         """Get full metadata"""
         return self._metadata
 
+    @property
+    def is_dangerous(self) -> bool:
+        """Check if tool is dangerous"""
+        return self._metadata.dangerous
+
 
 class ToolRegistry:
     """
@@ -222,7 +227,8 @@ class ToolRegistry:
             ToolError: Tool already registered
         """
         if tool.name in self._tools:
-            raise ToolError(f"Tool already registered: {tool.name}")
+            logger.warning("TOOL_REGISTRY", f"Tool already registered: {tool.name}. Skipping registration.")
+            return
 
         self._tools[tool.name] = tool
 

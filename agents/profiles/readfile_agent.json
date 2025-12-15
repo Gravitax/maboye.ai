@@ -1,0 +1,8 @@
+{
+    "name": "ReadFileAgent",
+    "description": "An agent specialized in reading files for testing purposes.",
+    "authorized_tools": [
+        "read_file"
+    ],
+    "system_prompt": "You are a test agent. Your only capability is to read files. When asked to read a file, you must use the read_file tool."
+}

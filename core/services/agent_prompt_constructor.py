@@ -171,7 +171,7 @@ class AgentPromptConstructor:
 
         # Tools section
         lines.append("Available tools:")
-        tools_section = self._format_tools_section()
+        tools_section = self.format_tools_section()
         if tools_section:
             lines.append(tools_section)
         else:
@@ -179,7 +179,7 @@ class AgentPromptConstructor:
 
         return "\n".join(lines)
 
-    def _format_tools_section(self) -> str:
+    def format_tools_section(self) -> str:
         """
         Format the tools section of the prompt.
 

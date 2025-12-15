@@ -8,7 +8,7 @@ from threading import RLock
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import copy
-
+from core.logger import logger
 from core.repositories.memory_repository import MemoryRepository
 from core.domain.conversation_context import ConversationContext
 from core.domain.agent_identity import AgentIdentity
@@ -84,6 +84,7 @@ class InMemoryMemoryRepository(MemoryRepository):
                 self._memories[agent_id] = []
 
             self._memories[agent_id].append(turn)
+            logger.info("MEMORY_REPOSITORY", f"Turn saved for agent {agent_id}", {"role": role, "content_preview": str(content)[:50]})
             return True
 
     def get_conversation_history(
