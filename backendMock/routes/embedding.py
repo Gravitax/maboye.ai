@@ -2,10 +2,8 @@
 Embedding routes for the Backend Mock API.
 """
 from fastapi import APIRouter, HTTPException
-import time # Added for time.time()
-from datetime import datetime # Added for datetime.now()
-from typing import List # Added for List
-import random # Added for random.uniform
+from typing import List
+import random
 
 from core.logger import logger
 from backendMock.backendMock_types import (
@@ -14,9 +12,6 @@ from backendMock.backendMock_types import (
     EmbeddingResponse,
     EmbedV1ModelsResponse,
 )
-# The BackendMock and its dependencies are no longer used here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -81,21 +76,21 @@ def list_embedding_models() -> EmbedV1ModelsResponse:
     )
 
 @router.get("/embed/v1/models", response_model=EmbedV1ModelsResponse, tags=["Embedding"])
-def embed_v1_list_models(): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def embed_v1_list_models():
     """List available embedding models."""
     try:
-        return list_embedding_models() # Call the local list_embedding_models function
+        return list_embedding_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Embed models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
 @router.post("/embed/v1/embeddings", response_model=EmbeddingResponse, tags=["Embedding"])
-def embed_v1_embeddings(request: EmbeddingRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def embed_v1_embeddings(request: EmbeddingRequest):
     """Generate embeddings via embed service."""
     try:
         logger.info("BACKEND_MOCK", "Received embedding request", {"request": request.model_dump()})
-        return generate_embeddings(request) # Call the local generate_embeddings function
+        return generate_embeddings(request)
     except Exception as error:
         logger.error("BACKEND_MOCK", "Embed error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

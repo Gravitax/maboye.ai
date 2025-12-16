@@ -14,9 +14,6 @@ from backendMock.backendMock_types import (
     OllamaEmbedResponse,
     OllamaTagsResponse,
 )
-# The BackendMock and its dependencies are no longer used here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -96,30 +93,30 @@ def list_ollama_models() -> OllamaTagsResponse:
 
 
 @router.get("/ollama/api/tags", response_model=OllamaTagsResponse, tags=["Ollama"])
-def ollama_list_tags(): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def ollama_list_tags():
     """List available Ollama models."""
     try:
-        return list_ollama_models() # Call the local list_ollama_models function
+        return list_ollama_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Ollama tags error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
 @router.post("/ollama/api/generate", response_model=OllamaGenerateResponse, tags=["Ollama"])
-def ollama_generate(request: OllamaGenerateRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def ollama_generate(request: OllamaGenerateRequest):
     """Generate completion via Ollama API."""
     try:
-        return generate_ollama_completion(request) # Call the local generate_ollama_completion function
+        return generate_ollama_completion(request)
     except Exception as error:
         logger.error("BACKEND_MOCK", "Ollama generate error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
 @router.post("/ollama/api/embed", response_model=OllamaEmbedResponse, tags=["Ollama"])
-def ollama_embed(request: OllamaEmbedRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def ollama_embed(request: OllamaEmbedRequest):
     """Generate embeddings via Ollama API."""
     try:
-        return generate_ollama_embeddings(request) # Call the local generate_ollama_embeddings function
+        return generate_ollama_embeddings(request)
     except Exception as error:
         logger.error("BACKEND_MOCK", "Ollama embed error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

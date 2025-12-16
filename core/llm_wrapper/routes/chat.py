@@ -1,31 +1,38 @@
 """
 Chat route for the LLM wrapper.
 """
-from typing import List, Union
-from ..llm_types import LLMMessage, LLMChatResponse
+from typing import List, Union, Optional
+from ..types import Message, ChatResponse
+
 
 def chat(
     self,
-    messages: List[LLMMessage],
-    verbose: bool = False
-) -> Union[str, LLMChatResponse]:
+    messages: List[Message],
+    verbose: bool = False,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None
+) -> Union[str, ChatResponse]:
     """
     Create chat completion.
 
     Args:
         messages: List of conversation messages
         verbose: If False, returns only message content (str).
-                 If True, returns full response (LLMChatResponse).
+                 If True, returns full response (ChatResponse).
+        temperature: Optional temperature override for this call
+        max_tokens: Optional max_tokens override for this call
 
     Returns:
-        str if verbose=False, LLMChatResponse if verbose=True
+        str if verbose=False, ChatResponse if verbose=True
 
     Raises:
         LLMWrapperError: Request failed
     """
-    request = self._build_chat_request(messages)
-    response = self._send_chat_request(request)
+    self._authenticate()
+    url = self.request_builder.build_chat_url(self.config)
+    request = self.request_builder.build_chat_request(messages, self.config, temperature, max_tokens)
+    response = self.request_sender.send_chat_request(url, request, self.session, self.config)
 
     if verbose:
         return response
-    return self._extract_message_content(response)
+    return self.response_handler.extract_message_content(response)

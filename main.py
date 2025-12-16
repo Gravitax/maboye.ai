@@ -32,11 +32,17 @@ class Application:
 
         # Register all specialized agents from profiles
         for profile in ALL_PROFILES:
+            # Extract LLM configuration if present
+            llm_config = profile.get("llm_config", {})
+
             agent = RegisteredAgent.create_new(
                 name=profile["name"],
                 description=profile["description"],
                 authorized_tools=profile["authorized_tools"],
-                system_prompt=profile["system_prompt"]
+                system_prompt=profile["system_prompt"],
+                llm_temperature=llm_config.get("temperature", 0.7),
+                llm_max_tokens=llm_config.get("max_tokens", 1000),
+                llm_timeout=llm_config.get("timeout", 30)
             )
 
             agent_repository.save(agent)

@@ -1,10 +1,8 @@
 """
 Authentication routes for the Backend Mock API.
 """
-from fastapi import APIRouter, HTTPException, Depends # Removed Depends for now
-import time # Added for time.time()
-from datetime import datetime # Added for datetime.now()
-from typing import List # Added for List
+from fastapi import APIRouter, HTTPException
+import time
 
 from core.logger import logger
 from backendMock.backendMock_types import (
@@ -12,9 +10,6 @@ from backendMock.backendMock_types import (
     SignInResponse,
     User,
 )
-# We no longer need BackendMock or get_backend_mock_dependency here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -28,11 +23,8 @@ def sign_in(request: SignInRequest) -> SignInResponse:
     Returns:
         A response containing a mock token and user info.
     """
-    # request_count is handled by main BackendMock instance, so we can't directly increment it here
-    # For now, let's just log the request
     logger.info("BACKEND_MOCK", "Sign-in attempt received", {
-        "email": request.email,
-        # "request_number": self.request_count # Cannot access self.request_count here
+        "email": request.email
     })
 
     # In a real application, you would validate credentials here
@@ -44,10 +36,10 @@ def sign_in(request: SignInRequest) -> SignInResponse:
     )
 
 @router.post("/api/v1/auths/signin", response_model=SignInResponse, tags=["Local API - Auth"])
-def api_v1_signin(request: SignInRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def api_v1_signin(request: SignInRequest):
     """Authenticate user and return a token."""
     try:
-        return sign_in(request) # Call the local sign_in function
+        return sign_in(request)
     except Exception as error:
         logger.error("BACKEND_MOCK", "Sign-in error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

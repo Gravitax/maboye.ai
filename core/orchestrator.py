@@ -57,6 +57,9 @@ class Orchestrator:
         self._agent_factory: AgentFactory
         self._execution_service: AgentExecutionService
 
+        # Persistent agent for execution (keeps conversation history)
+        self._persistent_agent: Optional[MockAgent] = None
+
         logger.info("ORCHESTRATOR", "Initializing orchestrator components")
         self._setup_components()
         logger.info("ORCHESTRATOR", "Orchestrator initialized successfully")
@@ -124,116 +127,123 @@ class Orchestrator:
         """Get the execution service."""
         return self._execution_service
 
+    def _register_mock_agent(self, mock_agent: MockAgent) -> None:
+        """Register MockAgent in repository for memory access.
+
+        Args:
+            mock_agent: MockAgent instance to register
+        """
+        # Create unique name using agent_id prefix to avoid conflicts
+        agent_id = mock_agent._identity.agent_id
+        unique_name = f"MockAgent_{agent_id[:8]}"
+
+        # Update identity with unique name
+        from core.domain import AgentIdentity
+        unique_identity = AgentIdentity(
+            agent_id=agent_id,
+            agent_name=unique_name,
+            creation_timestamp=mock_agent._identity.creation_timestamp
+        )
+
+        registered_agent = RegisteredAgent(
+            agent_identity=unique_identity,
+            agent_capabilities=mock_agent._capabilities,
+            system_prompt=mock_agent._capabilities.system_prompt or "MockAgent for testing",
+            is_active=True
+        )
+
+        # Save to repository
+        self._agent_repository.save(registered_agent)
+
+    def _generate_todolist(self, user_query: str) -> Optional[str]:
+        """Generate TodoList using orchestrator agent.
+
+        Returns:
+            TodoList JSON string if applicable, None for simple queries
+        """
+        logger.info("ORCHESTRATOR", "Generating TodoList")
+
+        agent_query = MockAgent(
+            self._llm,
+            self._tool_scheduler,
+            self._tool_registry,
+            self._memory_coordinator
+        )
+        # Register MockAgent in repository for memory access
+        self._register_mock_agent(agent_query)
+
+        result = agent_query.run(
+            query=f"generate_todolist: {user_query}",
+            mode="iterative",
+            scenario="auto",
+            max_iterations=1
+        )
+        if not result.success:
+            return None
+        response = result.response.strip()
+        if response.startswith("{") and "todo_list" in response:
+            return response
+        else:
+            return None
+
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
-        Process user input through the agent system.
+        Process user input through supervised multi-agent workflow.
 
-        Special commands:
-        - supervised_simple: Test supervised workflow with simple task
-        - supervised_analyze: Test supervised workflow with codebase analysis
-        - supervised_error: Test supervised workflow with error in step 2
-        - supervised:<query>: Run supervised workflow with custom query
+        Workflow:
+        1. Orchestrator agent generates TodoList from input
+        2. AgentExecutionService supervises execution of each step
+        3. Each step is validated before proceeding
+        4. Final aggregated result is returned
+
+        Args:
+            user_input: User input to process
+
+        Returns:
+            AgentOutput with final result
         """
-        logger.info("ORCHESTRATOR", "Processing user input", {
-            "input_length": len(user_input)
-        })
+        logger.info("ORCHESTRATOR", "Processing user input")
 
-        user_input_stripped = user_input.strip()
-
-        if user_input_stripped == "supervised_simple":
-            return self.process_user_input_supervised("simple task")
-        elif user_input_stripped == "supervised_analyze":
-            return self.process_user_input_supervised("analyze codebase")
-        elif user_input_stripped == "supervised_error":
-            return self.process_user_input_supervised("task with error")
-        elif user_input_stripped.startswith("supervised:"):
-            query = user_input_stripped[11:].strip()
-            return self.process_user_input_supervised(query)
+        user_input = user_input.strip()
+        mock_agent = None
 
         try:
-            # For testing, use the MockAgent to run the test
-            test_name = user_input_stripped
+            todolist_json = self._generate_todolist(user_input)
+            if todolist_json: # if todolist then supervized execution
+                todolist = json.loads(todolist_json)
 
+                logger.info("ORCHESTRATOR", "TodoList generated", {
+                    "total_steps": todolist.get("total_steps", 0)
+                })
+
+                supervision_result = self._execution_service.run(todolist=todolist)
+                return supervision_result
+            logger.info("ORCHESTRATOR", "No TodoList")
+            # if no todolist then default execution
             mock_agent = MockAgent(
                 self._llm,
                 self._tool_scheduler,
                 self._tool_registry,
                 self._memory_coordinator
             )
+            self._register_mock_agent(mock_agent)
 
-            result = mock_agent.run(test_name)
-
-            return AgentOutput(
-                response=f"MockAgent test '{test_name}' completed.",
-                success=result.get("success", False),
-                agent_id=mock_agent._identity.agent_id
-            )
-
+            result = mock_agent.run(user_input)
+            return result
         except Exception as e:
-            logger.error("ORCHESTRATOR", "Test execution failed", {"error": str(e)})
+            logger.error("ORCHESTRATOR", "Execution failed", {"error": str(e)})
             return AgentOutput(
-                response=f"Error executing test: {e}",
+                response=f"Error executing: {e}",
                 success=False,
                 error=str(e)
             )
         finally:
-            print("\n--- Agent Memory ---")
-            memory = self.get_memory_content("conversation", agent_id=mock_agent._identity.agent_id)
-            for item in memory:
-                print(item)
-            print("--------------------\n")
-
-    def process_user_input_iterative(
-        self,
-        user_query: str,
-        scenario: str = "auto",
-        max_iterations: int = 10
-    ) -> AgentOutput:
-        """
-        Process user input through iterative agent workflow.
-
-        Args:
-            user_query: User query to process
-            scenario: Scenario for backend mock routing
-            max_iterations: Maximum iterations to prevent infinite loops
-
-        Returns:
-            AgentOutput with final response
-        """
-        logger.info("ORCHESTRATOR", "Processing iterative user input", {
-            "query_length": len(user_query),
-            "scenario": scenario,
-            "max_iterations": max_iterations
-        })
-
-        try:
-            mock_agent = MockAgent(
-                self._llm,
-                self._tool_scheduler,
-                self._tool_registry,
-                self._memory_coordinator
-            )
-
-            result = mock_agent.run_iterative(
-                user_query=user_query,
-                scenario=scenario,
-                max_iterations=max_iterations
-            )
-
-            logger.info("ORCHESTRATOR", "Iterative workflow completed", {
-                "success": result.success,
-                "agent_id": result.agent_id
-            })
-
-            return result
-
-        except Exception as error:
-            logger.error("ORCHESTRATOR", "Iterative workflow failed", {"error": str(error)})
-            return AgentOutput(
-                response=f"Error in iterative workflow: {error}",
-                success=False,
-                error=str(error)
-            )
+            if mock_agent:
+                print("\n--- Memory ---")
+                memory = self.get_memory_content("conversation", agent_id=mock_agent._identity.agent_id)
+                for item in memory:
+                    print(item)
+                print("--------------------\n")
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -256,7 +266,7 @@ class Orchestrator:
         Get memory statistics formatted for the /memory command.
 
         Returns:
-            Dictionary with conversation stats
+            Dictionary with conversation stats aggregated from all agents
         """
         active_agents = self._agent_repository.find_active()
 
@@ -268,18 +278,22 @@ class Orchestrator:
                 }
             }
 
-        agent = active_agents[0]
-        agent_id = agent.get_agent_id()
-
-        all_turns = self._memory_repository.get_conversation_history(
-            agent_id=agent_id,
-            max_turns=None
-        )
+        # Aggregate memory from all active agents, counting only user/assistant pairs
+        total_pairs = 0
+        for agent in active_agents:
+            agent_id = agent.get_agent_id()
+            turns = self._memory_repository.get_conversation_history(
+                agent_id=agent_id,
+                max_turns=None
+            )
+            # Count only user turns (each user turn represents a conversation pair)
+            user_turns = sum(1 for turn in turns if turn.get("role") == "user")
+            total_pairs += user_turns
 
         return {
             "conversation": {
-                "size": len(all_turns),
-                "is_empty": len(all_turns) == 0
+                "size": total_pairs,
+                "is_empty": total_pairs == 0
             }
         }
 
@@ -296,80 +310,6 @@ class Orchestrator:
         self._memory_coordinator.clear_agent_memory("mock_agent")
         logger.info("ORCHESTRATOR", "Cleared memory for mock_agent")
 
-    def process_user_input_supervised(
-        self,
-        user_query: str,
-        max_iterations: int = 10
-    ) -> AgentOutput:
-        """
-        Process user input through supervised multi-agent workflow.
-
-        Workflow:
-        1. Orchestrator agent generates TodoList from query
-        2. AgentExecutionService supervises execution of each step
-        3. Each step is validated before proceeding
-        4. Final aggregated result is returned
-
-        Args:
-            user_query: User query to process
-            max_iterations: Max iterations per agent step
-
-        Returns:
-            AgentOutput with final result
-        """
-        logger.info("ORCHESTRATOR", "Starting supervised workflow", {
-            "query": user_query,
-            "max_iterations": max_iterations
-        })
-
-        try:
-            todolist_json = self._generate_todolist(user_query)
-
-            todolist = json.loads(todolist_json)
-
-            logger.info("ORCHESTRATOR", "TodoList generated", {
-                "total_steps": todolist.get("total_steps", 0)
-            })
-
-            supervision_result = self._execution_service.supervise_todolist_execution(
-                todolist=todolist,
-                max_iterations=max_iterations
-            )
-
-            return supervision_result
-
-        except Exception as error:
-            logger.error("ORCHESTRATOR", "Supervised workflow failed", {
-                "error": str(error)
-            })
-            return AgentOutput(
-                response=f"Supervised workflow error: {error}",
-                success=False,
-                error=str(error)
-            )
-
-    def _generate_todolist(self, user_query: str) -> str:
-        """Generate TodoList using orchestrator agent."""
-        logger.info("ORCHESTRATOR", "Generating TodoList", {"query": user_query})
-
-        orchestrator_agent = MockAgent(
-            self._llm,
-            self._tool_scheduler,
-            self._tool_registry,
-            self._memory_coordinator
-        )
-
-        result = orchestrator_agent.run_iterative(
-            user_query=f"generate todolist: {user_query}",
-            scenario="auto",
-            max_iterations=1
-        )
-
-        if not result.success:
-            raise Exception(f"TodoList generation failed: {result.error}")
-
-        return result.response
-
     def get_memory_content(self, mem_type: str, agent_id: Optional[str] = None) -> list:
         """
         Get memory content for a specific type.
@@ -377,37 +317,59 @@ class Orchestrator:
         Args:
             mem_type: Type of memory to retrieve (e.g., 'conversation')
             agent_id: Optional. The ID of the agent whose memory to retrieve.
-                      If None, tries to get memory for an active agent.
+                      If None, aggregates memory from all active agents.
 
         Returns:
-            List of memory entries
+            List of memory entries sorted by timestamp
         """
         if mem_type != "conversation":
             return []
 
-        if not agent_id:
+        formatted_entries = []
+
+        if agent_id:
+            # Get memory for specific agent
+            agent_ids = [agent_id]
+        else:
+            # Get memory for all active agents
             active_agents = self._agent_repository.find_active()
             if not active_agents:
                 return []
-            agent_id = active_agents[0].get_agent_id()
+            agent_ids = [agent.get_agent_id() for agent in active_agents]
 
-        # Get all conversation turns
-        turns = self._memory_repository.get_conversation_history(
-            agent_id=agent_id,
-            max_turns=None
-        )
+        # Aggregate memory from all agents
+        for aid in agent_ids:
+            # Get agent name from repository
+            agent = self._agent_repository.find_by_id(aid)
+            agent_name = agent.get_agent_name() if agent else "Unknown"
 
-        # Format turns for display
-        formatted_entries = []
-        for turn in turns:
-            formatted_entries.append({
-                "timestamp": turn.get("timestamp", "N/A"),
-                "data": {
-                    "role": turn.get("role", "unknown"),
-                    "content": turn.get("content", ""),
-                    "context": turn.get("metadata", {})
-                },
-                "metadata": turn.get("metadata", {})
-            })
+            # Get all conversation turns for this agent
+            turns = self._memory_repository.get_conversation_history(
+                agent_id=aid,
+                max_turns=None
+            )
+
+            # Format turns for display
+            for turn in turns:
+                # Add agent_name and system_prompt to context
+                context = turn.get("metadata", {}).copy()
+                context["agent_name"] = agent_name
+
+                # Add system prompt from agent capabilities
+                if agent and hasattr(agent, 'agent_capabilities'):
+                    context["system_prompt"] = agent.agent_capabilities.system_prompt
+
+                formatted_entries.append({
+                    "timestamp": turn.get("timestamp", "N/A"),
+                    "data": {
+                        "role": turn.get("role", "unknown"),
+                        "content": turn.get("content", ""),
+                        "context": context
+                    },
+                    "metadata": turn.get("metadata", {})
+                })
+
+        # Sort by timestamp for chronological order
+        formatted_entries.sort(key=lambda x: x["timestamp"])
 
         return formatted_entries

@@ -22,8 +22,5 @@ tools=[
 ## Méthode 2: Utiliser des strings
 tools=["read_file", "write_file", "edit_file", "list_directory"]
  
-## All tools
-tools=[]
- 
 ## No tools
-tools=None
+tools=[]

@@ -30,7 +30,10 @@ class ExecutionPlan:
 
     def is_dangerous(self, tool_registry) -> bool:
         """Check if any action is marked dangerous"""
-        logger.info("EXECUTION_PLAN", "Checking for dangerous tools", {"tool_registry": tool_registry})
+        logger.info("EXECUTION_PLAN", "Checking for dangerous tools", {
+            "steps_count": len(self.steps),
+            "total_actions": sum(len(step.actions) for step in self.steps)
+        })
         for step in self.steps:
             for action in step.actions:
                 tool = tool_registry.get_tool(action.tool_name)

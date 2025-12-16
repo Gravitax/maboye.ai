@@ -144,11 +144,7 @@ def execute_command(
         )
 
         if result.success:
-            logger.info("SHELL", "Command completed", {
-                "command": command,
-                "returncode": result.returncode,
-                "execution_time": execution_time
-            })
+            pass
         else:
             logger.warning("SHELL", "Command failed", {
                 "command": command,

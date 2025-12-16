@@ -1,14 +1,13 @@
 """
 Agent Prompt Constructor
 
-Builds agent-specific prompts with caching and cross-agent context support.
+Builds agent-specific prompts with caching.
 """
 
 from typing import List, Optional
 
 from core.domain.agent_capabilities import AgentCapabilities
 from core.domain.conversation_context import ConversationContext
-from core.domain.cross_agent_context import CrossAgentContext
 from core.services.agent_memory_coordinator import AgentMemoryCoordinator
 from tools.tool_base import ToolRegistry
 from agents.types import Message
@@ -21,7 +20,6 @@ class AgentPromptConstructor:
     Responsibilities:
     - Build system prompt with agent capabilities
     - Integrate conversation history
-    - Inject cross-agent context for collaboration
     - Cache compiled prompts for performance
 
     Attributes:
@@ -106,41 +104,6 @@ class AgentPromptConstructor:
 
         return messages
 
-    def build_with_cross_agent_context(
-        self,
-        conversation_context: ConversationContext,
-        cross_agent_context: CrossAgentContext
-    ) -> List[Message]:
-        """
-        Build messages with cross-agent context for collaboration.
-
-        Args:
-            conversation_context: Agent's conversation context
-            cross_agent_context: Context from other agents
-
-        Returns:
-            List of messages with injected cross-agent context
-        """
-        messages = self.build_conversation_messages(conversation_context)
-
-        # Format cross-agent context
-        context_message = self._format_cross_agent_context(cross_agent_context)
-
-        # Inject before last message (usually user input)
-        if len(messages) > 1:
-            messages.insert(-1, {
-                "role": "system",
-                "content": context_message
-            })
-        else:
-            # If only system prompt exists, append
-            messages.append({
-                "role": "system",
-                "content": context_message
-            })
-
-        return messages
-
     def invalidate_cache(self) -> None:
         """Invalidate cached system prompt."""
         self._system_prompt_cache = None
@@ -206,46 +169,6 @@ class AgentPromptConstructor:
         for tool in filtered_tools:
             tool_line = f"- {tool['name']}: {tool['description']}"
             lines.append(tool_line)
-
-        return "\n".join(lines)
-
-    def _format_cross_agent_context(
-        self,
-        cross_agent_context: CrossAgentContext
-    ) -> str:
-        """
-        Format cross-agent context into system message.
-
-        Args:
-            cross_agent_context: Context from other agents
-
-        Returns:
-            Formatted context message
-        """
-        lines = []
-        lines.append("Context from other agents:")
-        lines.append("")
-
-        if cross_agent_context.is_empty():
-            lines.append("No shared context available.")
-            return "\n".join(lines)
-
-        for context in cross_agent_context.shared_contexts:
-            agent_name = context.agent_identity.agent_name
-            turn_count = context.get_turn_count()
-
-            lines.append(f"Agent: {agent_name} ({turn_count} turns)")
-
-            # Include last few turns
-            last_turns = context.conversation_history[-3:] if turn_count > 0 else []
-            for turn in last_turns:
-                role = turn.get("role", "unknown")
-                content = turn.get("content", "")
-                # Truncate long content
-                content_preview = content[:200] if len(content) > 200 else content
-                lines.append(f"  [{role}]: {content_preview}")
-
-            lines.append("")
 
         return "\n".join(lines)
 

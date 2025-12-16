@@ -84,7 +84,6 @@ class InMemoryMemoryRepository(MemoryRepository):
                 self._memories[agent_id] = []
 
             self._memories[agent_id].append(turn)
-            logger.info("MEMORY_REPOSITORY", f"Turn saved for agent {agent_id}", {"role": role, "content_preview": str(content)[:50]})
             return True
 
     def get_conversation_history(

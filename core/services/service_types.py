@@ -18,17 +18,11 @@ class ExecutionOptions:
 
     Attributes:
         timeout_seconds: Maximum execution time in seconds
-        enable_cross_agent_context: Whether to include context from other agents
-        cross_agent_ids: List of agent IDs to include in context
-        max_cross_agent_turns: Maximum turns to retrieve per agent
         include_metrics: Whether to collect detailed metrics
         metadata: Additional execution metadata
     """
 
     timeout_seconds: Optional[int] = None
-    enable_cross_agent_context: bool = False
-    cross_agent_ids: list = field(default_factory=list)
-    max_cross_agent_turns: int = 5
     include_metrics: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -36,9 +30,6 @@ class ExecutionOptions:
         """Validate execution options."""
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
-
-        if self.max_cross_agent_turns <= 0:
-            raise ValueError("max_cross_agent_turns must be positive")
 
 
 @dataclass

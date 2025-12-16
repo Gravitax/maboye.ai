@@ -3,8 +3,6 @@ Completion routes for the Backend Mock API.
 """
 from fastapi import APIRouter, HTTPException
 import time
-from datetime import datetime
-
 from core.logger import logger
 from backendMock.backendMock_types import (
     BackendMockCompletionRequest,
@@ -12,9 +10,6 @@ from backendMock.backendMock_types import (
     BackendMockCompletionChoice,
     BackendMockUsage,
 )
-# The BackendMock and its dependencies are no longer used here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -73,7 +68,7 @@ def generate_text_completion(request: BackendMockCompletionRequest) -> BackendMo
     )
 
 @router.post("/api/v1/completions", response_model=BackendMockCompletionResponse, tags=["Local API - Global"])
-def api_v1_completions(request: BackendMockCompletionRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def api_v1_completions(request: BackendMockCompletionRequest):
     """Create text completion via global API."""
     try:
         return generate_text_completion(request)
@@ -83,7 +78,7 @@ def api_v1_completions(request: BackendMockCompletionRequest): # Removed backend
 
 
 @router.post("/chat/v1/completions", response_model=BackendMockCompletionResponse, tags=["Local API - Chat"])
-def chat_v1_completions(request: BackendMockCompletionRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def chat_v1_completions(request: BackendMockCompletionRequest):
     """Create text completion via chat service."""
     try:
         return generate_text_completion(request)
@@ -93,7 +88,7 @@ def chat_v1_completions(request: BackendMockCompletionRequest): # Removed backen
 
 
 @router.post("/code/v1/completions", response_model=BackendMockCompletionResponse, tags=["Local API - Code"])
-def code_v1_completions(request: BackendMockCompletionRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def code_v1_completions(request: BackendMockCompletionRequest):
     """Create text completion via code service."""
     try:
         return generate_text_completion(request)

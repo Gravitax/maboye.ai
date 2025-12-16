@@ -11,9 +11,9 @@ from core.services.cache_strategy import CacheStrategy, LRUCache
 from core.services.agent_memory_coordinator import AgentMemoryCoordinator
 from core.services.agent_prompt_constructor import AgentPromptConstructor
 from core.services.agent_execution_service import AgentExecutionService
+from core.services.agent_execution_coordinator import AgentExecutionCoordinator
 from core.services.agent_factory import AgentFactory
 from core.services.plan_execution_service import PlanExecutionService, PlanExecutionError
-from core.services.plan_parser import parse_json_to_plan, PlanParseError
 
 # Types
 from core.services.service_types import (
@@ -32,9 +32,9 @@ __all__ = [
     'AgentMemoryCoordinator',
     'AgentPromptConstructor',
     'AgentExecutionService',
+    'AgentExecutionCoordinator',
     'AgentFactory',
     'PlanExecutionService',
-    'parse_json_to_plan',
     # Types
     'ExecutionOptions',
     'AgentExecutionResult',
@@ -43,5 +43,4 @@ __all__ = [
     'AgentInactiveError',
     'AgentExecutionError',
     'PlanExecutionError',
-    'PlanParseError',
 ]

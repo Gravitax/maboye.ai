@@ -46,6 +46,7 @@ class LLMWrapperConfig:
     timeout: int = field(default_factory=lambda: get_env_int("LLM_TIMEOUT", 30))
     email: str = field(default_factory=lambda: get_env_str("API_EMAIL", ""))
     password: str = field(default_factory=lambda: get_env_str("API_PASSWORD", ""))
+    api_key: str = field(default_factory=lambda: get_env_str("API_KEY", "sk-de84accdaf814042a15cbf4aadd8dde7"))
     use_payload_wrapper: bool = False
 
     def __post_init__(self):

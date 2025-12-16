@@ -123,3 +123,5 @@ class LLMExecutionStep(BaseModel):
 class LLMTestPlanResponse(BaseModel):
     """Response with a test execution plan."""
     steps: List[LLMExecutionStep]
+    role: str = "assistant"
+    content: Optional[str] = None

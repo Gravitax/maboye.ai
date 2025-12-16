@@ -152,6 +152,9 @@ class RegisteredAgent:
         max_reasoning_turns: int = 10,
         max_memory_turns: int = 10,
         specialization_tags: Optional[list] = None,
+        llm_temperature: float = 0.7,
+        llm_max_tokens: int = 1000,
+        llm_timeout: int = 30,
         is_active: bool = True
     ) -> 'RegisteredAgent':
         """
@@ -191,7 +194,10 @@ class RegisteredAgent:
             authorized_tools=authorized_tools,
             max_reasoning_turns=max_reasoning_turns,
             max_memory_turns=max_memory_turns,
-            specialization_tags=specialization_tags or []
+            specialization_tags=specialization_tags or [],
+            llm_temperature=llm_temperature,
+            llm_max_tokens=llm_max_tokens,
+            llm_timeout=llm_timeout
         )
 
         return RegisteredAgent(

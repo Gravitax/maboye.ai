@@ -230,9 +230,22 @@ class MemoryCommand(BaseCommand):
         self._print_pair_header(pair_id)
         self._display_input(entries[idx])
 
-        if self._has_assistant_response(entries, idx):
-            idx += 1
-            self._display_output(entries[idx])
+        # Count tool turns and find assistant response
+        tool_count = 0
+        next_idx = idx + 1
+        while next_idx < len(entries):
+            next_entry = entries[next_idx]
+            next_role = next_entry.get("data", {}).get("role")
+
+            if next_role == "tool":
+                tool_count += 1
+                next_idx += 1
+            elif next_role == "assistant":
+                self._display_output(entries[next_idx], tool_count)
+                return next_idx
+            else:
+                # Hit another user message without finding assistant response
+                break
 
         return idx
 
@@ -334,28 +347,31 @@ class MemoryCommand(BaseCommand):
             print(f"\nComplete Message Sent to LLM:")
             print(prompt)
 
-    def _display_output(self, entry: dict) -> None:
+    def _display_output(self, entry: dict, tool_count: int = 0) -> None:
         """Display OUTPUT section."""
         timestamp = entry.get("timestamp", "N/A")
         data = entry.get("data", {})
         metadata = entry.get("metadata", {})
 
-        self._print_output_header(timestamp)
+        self._print_output_header(timestamp, tool_count)
         self._print_output_agent()
         self._print_llm_response(data, metadata)
         self._print_output_prompt(data)
         self._print_tool_calls(data)
         self._print_tool_results(data)
 
-    def _print_output_header(self, timestamp: str) -> None:
+    def _print_output_header(self, timestamp: str, tool_count: int = 0) -> None:
         """
         Print OUTPUT section header.
 
         Args:
             timestamp: The timestamp of the output.
+            tool_count: Number of tools used in this response.
         """
         print(f"\n--- OUTPUT ---")
         print(f"Timestamp: {timestamp}")
+        if tool_count > 0:
+            print(f"Tools Used: {tool_count}")
 
     def _print_output_agent(self) -> None:
         """Print agent name for output section."""

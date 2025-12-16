@@ -2,8 +2,7 @@
 Chat routes for the Backend Mock API.
 """
 from fastapi import APIRouter, HTTPException, Depends
-import time # Needed for time.time()
-from datetime import datetime # Needed for datetime.now()
+import time
 from typing import List
 
 from core.logger import logger
@@ -14,9 +13,6 @@ from backendMock.backendMock_types import (
     BackendMockChatChoice,
     BackendMockUsage,
 )
-# We no longer need BackendMock or get_backend_mock_dependency here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -81,7 +77,7 @@ def generate_chat_response(request: BackendMockChatRequest) -> BackendMockChatRe
     )
 
 @router.post("/v1/chat/completions", response_model=BackendMockChatResponse, tags=["OpenAI"])
-def chat_completions(request: BackendMockChatRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def chat_completions(request: BackendMockChatRequest):
     """
     Create chat completion.
 
@@ -99,7 +95,7 @@ def chat_completions(request: BackendMockChatRequest): # Removed backend_mock: B
 
 
 @router.post("/api/v1/chat/completions", response_model=BackendMockChatResponse, tags=["Local API - Global"])
-def api_v1_chat_completions(request: BackendMockChatRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def api_v1_chat_completions(request: BackendMockChatRequest):
     """Create chat completion via global API."""
     try:
         return generate_chat_response(request)
@@ -109,7 +105,7 @@ def api_v1_chat_completions(request: BackendMockChatRequest): # Removed backend_
 
 
 @router.post("/chat/v1/chat/completions", response_model=BackendMockChatResponse, tags=["Local API - Chat"])
-def chat_v1_chat_completions(request: BackendMockChatRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def chat_v1_chat_completions(request: BackendMockChatRequest):
     """Create chat completion via chat service."""
     try:
         return generate_chat_response(request)
@@ -119,7 +115,7 @@ def chat_v1_chat_completions(request: BackendMockChatRequest): # Removed backend
 
 
 @router.post("/code/v1/chat/completions", response_model=BackendMockChatResponse, tags=["Local API - Code"])
-def code_v1_chat_completions(request: BackendMockChatRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def code_v1_chat_completions(request: BackendMockChatRequest):
     """Create chat completion via code service."""
     try:
         return generate_chat_response(request)

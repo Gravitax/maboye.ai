@@ -39,5 +39,4 @@ By default, the application starts without the backend mock server. To start the
 
 > supervised_simple
 > supervised_analyze
-> supervised:analyze the project structure
 > supervised_error

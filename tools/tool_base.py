@@ -162,12 +162,6 @@ class Tool(ABC):
 
             # Execute tool
             result = self.execute(**validated_params)
-
-            logger.info("TOOL", f"{self._metadata.name} completed", {
-                "tool": self._metadata.name,
-                "success": True
-            })
-
             return result
 
         except ToolValidationError:

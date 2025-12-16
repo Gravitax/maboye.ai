@@ -9,9 +9,6 @@ from backendMock.backendMock_types import (
     BackendMockModel,
     BackendMockModelsResponse,
 )
-# The BackendMock and its dependencies are no longer used here
-# from backendMock.core_mock import BackendMock
-# from backendMock.dependencies import get_backend_mock_dependency
 
 router = APIRouter()
 
@@ -54,7 +51,7 @@ def list_models() -> BackendMockModelsResponse:
     return BackendMockModelsResponse(object="list", data=models)
 
 @router.get("/v1/models", response_model=BackendMockModelsResponse, tags=["OpenAI"])
-def list_models_endpoint(): # Renamed to avoid conflict with the function
+def list_models_endpoint():
     """
     List available models.
 
@@ -62,7 +59,7 @@ def list_models_endpoint(): # Renamed to avoid conflict with the function
         List of available models
     """
     try:
-        return list_models() # Call the local list_models function
+        return list_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
@@ -72,7 +69,7 @@ def list_models_endpoint(): # Renamed to avoid conflict with the function
 def api_v1_list_models():
     """List available models via global API."""
     try:
-        return list_models() # Call the local list_models function
+        return list_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
@@ -82,7 +79,7 @@ def api_v1_list_models():
 def chat_v1_list_models():
     """List available models via chat service."""
     try:
-        return list_models() # Call the local list_models function
+        return list_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
@@ -92,7 +89,7 @@ def chat_v1_list_models():
 def code_v1_list_models():
     """List available models via code service."""
     try:
-        return list_models() # Call the local list_models function
+        return list_models()
     except Exception as error:
         logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

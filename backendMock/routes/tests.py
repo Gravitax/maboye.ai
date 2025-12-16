@@ -10,9 +10,6 @@ from backendMock.backendMock_types import (
     ActionStep,
     ExecutionStep,
 )
-# The BackendMock and its dependencies are no longer used here
-# from backendMock.dependencies import get_backend_mock_dependency
-# from backendMock.core_mock import BackendMock # Import BackendMock for type hinting
 
 router = APIRouter()
 
@@ -323,11 +320,11 @@ def generate_test_plan(request: TestPlanRequest) -> TestPlanResponse:
     else:
         steps = []
 
-    return TestPlanResponse(steps=steps)
+    return TestPlanResponse(steps=steps, content="Mock response to " + request.test_name)
 
 
 @router.post("/tests", response_model=TestPlanResponse, tags=["Tests"])
-def run_test(request: TestPlanRequest): # Removed backend_mock: BackendMock = Depends(get_backend_mock_dependency)
+def run_test(request: TestPlanRequest):
     """
     Generate a mock execution plan for testing.
     """

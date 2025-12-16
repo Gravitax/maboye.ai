@@ -262,18 +262,8 @@ class AgentExecutionService:
             "input_length": len(user_input),
             "agent_name": agent.get_agent_name(),
             "agent_id": agent.get_agent_id(),
-            "timeout_seconds": options.timeout_seconds,
-            "cross_agent_enabled": options.enable_cross_agent_context
+            "timeout_seconds": options.timeout_seconds
         }
-
-        # Add cross-agent context if enabled
-        if options.enable_cross_agent_context and options.cross_agent_ids:
-            cross_context = self._memory_coordinator.build_cross_agent_context(
-                requesting_agent_id=agent.get_agent_id(),
-                other_agent_ids=options.cross_agent_ids,
-                max_turns_per_agent=options.max_cross_agent_turns
-            )
-            context['cross_agent_count'] = cross_context.get_shared_agent_count()
 
         return context
 
@@ -305,11 +295,11 @@ class AgentExecutionService:
             f"memory_coordinator={self._memory_coordinator})"
         )
 
-    def supervise_todolist_execution(
+    def run(
         self,
         todolist: dict,
-        max_iterations: int = 10,
-        max_retries: int = 2
+        max_iterations: int = 2,
+        max_retries: int = 1
     ) -> AgentOutput:
         """
         Supervise execution of TodoList steps with retry mechanism.
@@ -391,14 +381,6 @@ class AgentExecutionService:
                     logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} succeeded after {attempt} retries")
                 return result
 
-            if attempt < max_retries:
-                logger.warning("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed, attempting correction")
-                correction_result = self._execute_correction_step(step, result, max_iterations)
-
-                if correction_result.success:
-                    logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} corrected successfully")
-                    return correction_result
-
         logger.error("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed after {max_retries} retries")
         return result
 
@@ -422,8 +404,9 @@ class AgentExecutionService:
 
         agent = self._route_step_to_agent(step)
 
-        result = agent.run_iterative(
-            user_query=description,
+        result = agent.run(
+            query=description,
+            mode="iterative",
             scenario="auto",
             max_iterations=max_iterations
         )
@@ -471,7 +454,6 @@ class AgentExecutionService:
             logger.warning("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed validation: empty response")
             return False
 
-        logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} validation passed")
         return True
 
     def _aggregate_step_results(self, query: str, step_results: list) -> str:

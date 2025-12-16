@@ -7,7 +7,6 @@ Value Objects (Immutable):
     - AgentIdentity: Unique identity of an agent
     - AgentCapabilities: What an agent can do
     - ConversationContext: Snapshot of conversation state
-    - CrossAgentContext: Context shared between agents
     - ExecutionPlan: Complete execution plan from LLM
 
 Entities (Mutable):
@@ -17,7 +16,6 @@ Note: To avoid circular imports, import these explicitly when needed:
     from core.domain.agent_identity import AgentIdentity
     from core.domain.agent_capabilities import AgentCapabilities
     from core.domain.conversation_context import ConversationContext
-    from core.domain.cross_agent_context import CrossAgentContext
     from core.domain.registered_agent import RegisteredAgent
     from core.domain.execution_plan import ExecutionPlan, ExecutionStep, ActionStep
 """
@@ -26,7 +24,6 @@ Note: To avoid circular imports, import these explicitly when needed:
 from core.domain.agent_identity import AgentIdentity
 from core.domain.agent_capabilities import AgentCapabilities
 from core.domain.conversation_context import ConversationContext
-from core.domain.cross_agent_context import CrossAgentContext
 from core.domain.execution_plan import ExecutionPlan, ExecutionStep, ActionStep
 
 # Entities
@@ -37,7 +34,6 @@ __all__ = [
     'AgentIdentity',
     'AgentCapabilities',
     'ConversationContext',
-    'CrossAgentContext',
     'ExecutionPlan',
     'ExecutionStep',
     'ActionStep',

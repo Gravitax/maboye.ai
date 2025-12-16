@@ -87,11 +87,6 @@ class ToolScheduler:
                 "success": success,
                 "execution_time": execution_time,
             })
-
-        logger.info("TOOL_SCHEDULER", "Finished executing tool calls", {
-            "call_count": len(tool_calls),
-            "result_count": len(results),
-        })
         return results
 
 

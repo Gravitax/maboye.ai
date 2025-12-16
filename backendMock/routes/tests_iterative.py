@@ -47,16 +47,18 @@ def _extract_scenario_from_messages(messages: List[Message]) -> str:
     for msg in messages:
         if msg.role == "user" and msg.content:
             content_lower = msg.content.lower()
-            if "simulate_error" in content_lower:
-                return "simulate_error"
-            elif "generate todolist" in content_lower or "create todolist" in content_lower:
+            if "fix the following error" in content_lower:
+                return "fix_error"
+            elif "generate_todolist" in content_lower or "generate todolist" in content_lower:
                 return "generate_todolist"
-            elif "analyze architecture" in content_lower:
-                return "analyze_architecture"
-            elif "read and summarize" in content_lower:
-                return "read_summarize"
             elif "find errors" in content_lower:
                 return "find_errors"
+            elif "supervised_error" in content_lower:
+                return "supervised_error"
+            elif "supervised_analyze" in content_lower:
+                return "supervised_analyze"
+            elif "supervised_simple" in content_lower:
+                return "supervised_simple"
     return "default"
 
 
@@ -129,7 +131,7 @@ The project follows a domain-driven architecture with clear separation of concer
 The architecture enables flexible agent behavior with proper separation between infrastructure, domain logic, and tools."""
 
 
-def _generate_analyze_architecture_response(
+def _generate_supervised_analyze_response(
     messages: List[Message],
     tool_results_count: int
 ) -> ChatIterativeResponse:
@@ -201,7 +203,7 @@ Key points extracted:
 Total content length: {content_length} characters."""
 
 
-def _generate_read_summarize_response(
+def _generate_supervised_simple_response(
     messages: List[Message],
     tool_results_count: int
 ) -> ChatIterativeResponse:
@@ -287,9 +289,7 @@ def _generate_default_response(
 
 def _generate_todolist_from_query(query: str) -> str:
     """Generate TodoList JSON based on query."""
-    query_lower = query.lower()
-
-    if "with error" in query_lower or "test error" in query_lower:
+    if "supervised_error" in query:
         return """{
   "todo_list": [
     {
@@ -304,7 +304,7 @@ def _generate_todolist_from_query(query: str) -> str:
     },
     {
       "step_id": "step_2",
-      "description": "SIMULATE_ERROR",
+      "description": "supervised_error",
       "agent_type": "error_agent",
       "priority": 2,
       "depends_on": "step_1",
@@ -327,7 +327,7 @@ def _generate_todolist_from_query(query: str) -> str:
   "query": \"""" + query + """\",
   "total_steps": 3
 }"""
-    elif "analyze" in query_lower and ("architecture" in query_lower or "codebase" in query_lower):
+    elif "supervised_analyze" in query:
         return """{
   "todo_list": [
     {
@@ -367,7 +367,7 @@ def _generate_todolist_from_query(query: str) -> str:
   "query": \"""" + query + """\",
   "total_steps": 3
 }"""
-    else:
+    elif "supervised_simple" in query:
         return """{
   "todo_list": [
     {
@@ -385,7 +385,8 @@ def _generate_todolist_from_query(query: str) -> str:
   "query": \"""" + query + """\",
   "total_steps": 1
 }"""
-
+    else:
+        return None
 
 def _generate_generate_todolist_response(
     messages: List[Message],
@@ -398,7 +399,21 @@ def _generate_generate_todolist_response(
             user_query = msg.content
             break
 
-    todolist_json = _generate_todolist_from_query(user_query)
+    # Extract actual query from "generate_todolist: <query>" format
+    if "generate_todolist:" in user_query.lower():
+        actual_query = user_query.split(":", 1)[1].strip()
+    else:
+        actual_query = user_query
+
+    todolist_json = _generate_todolist_from_query(actual_query)
+
+    # If no todolist is needed for this simple query, return a clear message
+    if todolist_json is None:
+        return ChatIterativeResponse(
+            role="assistant",
+            content="No TodoList needed for this simple query.",
+            tool_calls=None
+        )
 
     return ChatIterativeResponse(
         role="assistant",
@@ -407,7 +422,7 @@ def _generate_generate_todolist_response(
     )
 
 
-def _generate_simulate_error_response(
+def _generate_supervised_error_response(
     messages: List[Message],
     tool_results_count: int
 ) -> ChatIterativeResponse:
@@ -419,6 +434,18 @@ def _generate_simulate_error_response(
     )
 
 
+def _generate_fix_error_response(
+    messages: List[Message],
+    tool_results_count: int
+) -> ChatIterativeResponse:
+    """Simulate successful error correction."""
+    return ChatIterativeResponse(
+        role="assistant",
+        content="Error fixed successfully. The step has been corrected and can now proceed.",
+        tool_calls=None
+    )
+
+
 def _route_to_scenario_handler(
     scenario: str,
     messages: List[Message],
@@ -426,10 +453,11 @@ def _route_to_scenario_handler(
 ) -> ChatIterativeResponse:
     """Route request to appropriate scenario handler."""
     handlers = {
-        "simulate_error": _generate_simulate_error_response,
+        "fix_error": _generate_fix_error_response,
+        "supervised_error": _generate_supervised_error_response,
+        "supervised_analyze": _generate_supervised_analyze_response,
+        "supervised_simple": _generate_supervised_simple_response,
         "generate_todolist": _generate_generate_todolist_response,
-        "analyze_architecture": _generate_analyze_architecture_response,
-        "read_summarize": _generate_read_summarize_response,
         "find_errors": _generate_find_errors_response
     }
 
@@ -437,8 +465,8 @@ def _route_to_scenario_handler(
     return handler(messages, tool_results_count)
 
 
-@router.post("/chat/iterative", response_model=ChatIterativeResponse, tags=["Chat"])
-def chat_iterative(request: ChatIterativeRequest):
+@router.post("/tests/iterative", response_model=ChatIterativeResponse, tags=["Tests"])
+def test_iterative(request: ChatIterativeRequest):
     """Simulate iterative LLM chat with tool calls."""
     try:
         scenario = request.scenario

@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from core.repositories.memory_repository import MemoryRepository
 from core.domain.agent_identity import AgentIdentity
 from core.domain.conversation_context import ConversationContext
-from core.domain.cross_agent_context import CrossAgentContext
 from core.services.cache_strategy import CacheStrategy, LRUCache
 
 
@@ -80,50 +79,6 @@ class AgentMemoryCoordinator:
         self._cache.put(cache_key, context)
 
         return context
-
-    def build_cross_agent_context(
-        self,
-        requesting_agent_id: str,
-        other_agent_ids: List[str],
-        max_turns_per_agent: int = 5
-    ) -> CrossAgentContext:
-        """
-        Build shared context from multiple agents.
-
-        Used for inter-agent collaboration.
-
-        Args:
-            requesting_agent_id: ID of the agent requesting context
-            other_agent_ids: List of agent IDs to get context from
-            max_turns_per_agent: Maximum turns to retrieve per agent
-
-        Returns:
-            CrossAgentContext with shared contexts
-        """
-        shared_contexts = []
-
-        for agent_id in other_agent_ids:
-            if agent_id == requesting_agent_id:
-                continue  # Don't include self
-
-            # Get context from repository
-            context = self._memory_repository.get_context(
-                agent_id=agent_id,
-                max_turns=max_turns_per_agent
-            )
-
-            if context is not None:
-                shared_contexts.append(context)
-
-        return CrossAgentContext.create_from_agents(
-            requesting_agent_id=requesting_agent_id,
-            agent_contexts=shared_contexts,
-            metadata={
-                'total_agents': len(shared_contexts),
-                'max_turns_per_agent': max_turns_per_agent,
-                'created_at': datetime.now().isoformat()
-            }
-        )
 
     def save_conversation_turn(
         self,

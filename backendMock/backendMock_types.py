@@ -206,3 +206,5 @@ class ExecutionStep(BaseModel):
 class TestPlanResponse(BaseModel):
     """Response with a test execution plan."""
     steps: List[ExecutionStep]
+    role: str = "assistant"
+    content: Optional[str] = None

@@ -1,32 +1,45 @@
 """
-LLM wrapper package.
+LLM Wrapper Module - Simplified
 
-Provides abstraction layer for LLM API interactions.
+Provides abstraction layer for LLM API calls with clean architecture.
 """
 
+from .llm_wrapper import LLMWrapper
 from .config import LLMWrapperConfig
-from .llm_wrapper import LLMWrapper, LLMWrapperError
-from .llm_types import (
-    LLMMessage,
-    LLMChatRequest,
-    LLMChatResponse,
-    LLMChatChoice,
-    LLMUsage,
-    LLMModel,
-    LLMModelsResponse
+from .errors import LLMWrapperError
+
+# Export simplified types
+from .types import (
+    Message,
+    ChatRequest,
+    ChatResponse,
+    Choice,
+    Usage,
+    Model,
+    ModelsResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    TestPlanResponse,
 )
 
 __all__ = [
-    "LLMWrapper",
-    "LLMWrapperConfig",
-    "LLMWrapperError",
-    "LLMMessage",
-    "LLMChatRequest",
-    "LLMChatResponse",
-    "LLMChatChoice",
-    "LLMUsage",
-    "LLMModel",
-    "LLMModelsResponse",
+    # Main class
+    'LLMWrapper',
+    # Configuration
+    'LLMWrapperConfig',
+    # Errors
+    'LLMWrapperError',
+    # Types
+    'Message',
+    'ChatRequest',
+    'ChatResponse',
+    'Choice',
+    'Usage',
+    'Model',
+    'ModelsResponse',
+    'EmbeddingRequest',
+    'EmbeddingResponse',
+    'TestPlanResponse',
 ]
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
