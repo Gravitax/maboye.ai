@@ -22,7 +22,7 @@ from .llm_types import (
 
 from .config import LLMWrapperConfig
 from .errors import LLMWrapperError
-from .routes import auth, chat, embedding, models, test
+from .routes import auth, chat, embedding, models, test, chat_iterative
 
 
 class LLMWrapper:
@@ -95,6 +95,9 @@ class LLMWrapper:
 
     def test(self, test_name: str) -> LLMTestPlanResponse:
         return test.test(self, test_name)
+
+    def chat_iterative(self, messages: List[Dict], scenario: str = "auto") -> Dict:
+        return chat_iterative.chat_iterative(self, messages, scenario)
 
     def _build_chat_request(self, messages: List[LLMMessage]) -> LLMChatRequest:
         """Build chat request from messages."""

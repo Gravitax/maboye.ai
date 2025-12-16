@@ -47,7 +47,10 @@ class AgentExecutionService:
         self,
         agent_repository: AgentRepository,
         memory_coordinator: AgentMemoryCoordinator,
-        agent_factory: Optional['AgentFactory'] = None
+        agent_factory: Optional['AgentFactory'] = None,
+        llm=None,
+        tool_scheduler=None,
+        tool_registry=None
     ):
         """
         Initialize execution service.
@@ -56,10 +59,16 @@ class AgentExecutionService:
             agent_repository: Repository for agent persistence
             memory_coordinator: Coordinator for memory management
             agent_factory: Optional factory for creating and executing agents
+            llm: LLM wrapper for agent creation
+            tool_scheduler: Tool scheduler for agent creation
+            tool_registry: Tool registry for agent creation
         """
         self._agent_repository = agent_repository
         self._memory_coordinator = memory_coordinator
         self._agent_factory = agent_factory
+        self._llm = llm
+        self._tool_scheduler = tool_scheduler
+        self._tool_registry = tool_registry
 
     def execute_agent(
         self,
@@ -295,3 +304,184 @@ class AgentExecutionService:
             f"agent_repository={self._agent_repository}, "
             f"memory_coordinator={self._memory_coordinator})"
         )
+
+    def supervise_todolist_execution(
+        self,
+        todolist: dict,
+        max_iterations: int = 10,
+        max_retries: int = 2
+    ) -> AgentOutput:
+        """
+        Supervise execution of TodoList steps with retry mechanism.
+
+        Args:
+            todolist: TodoList dict with steps
+            max_iterations: Max iterations per step
+            max_retries: Max retry attempts for failed steps
+
+        Returns:
+            AgentOutput with final aggregated result
+        """
+        from core.logger import logger
+
+        steps = todolist.get("todo_list", [])
+        query = todolist.get("query", "")
+
+        step_results = []
+        completed_steps = []
+
+        for step in steps:
+            step_id = step.get("step_id")
+            depends_on = step.get("depends_on")
+
+            if depends_on and depends_on not in completed_steps:
+                error_msg = f"Dependency {depends_on} not completed for {step_id}"
+                logger.error("AGENT_EXECUTION_SERVICE", error_msg)
+                return AgentOutput(
+                    response=error_msg,
+                    success=False,
+                    error="dependency_not_met"
+                )
+
+            step_result = self._execute_step_with_retry(
+                step=step,
+                max_iterations=max_iterations,
+                max_retries=max_retries
+            )
+
+            if not step_result.success:
+                return AgentOutput(
+                    response=f"Step {step_id} failed after {max_retries} retries: {step_result.error}",
+                    success=False,
+                    error=f"step_{step_id}_failed_max_retries"
+                )
+
+            step_results.append(step_result)
+            completed_steps.append(step_id)
+
+            logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} completed successfully")
+
+        final_response = self._aggregate_step_results(query, step_results)
+
+        return AgentOutput(
+            response=final_response,
+            success=True,
+            agent_id="supervised_workflow"
+        )
+
+    def _execute_step_with_retry(
+        self,
+        step: dict,
+        max_iterations: int,
+        max_retries: int
+    ) -> AgentOutput:
+        """Execute step with retry mechanism on failure."""
+        from core.logger import logger
+
+        step_id = step.get("step_id")
+
+        for attempt in range(max_retries + 1):
+            if attempt > 0:
+                logger.info("AGENT_EXECUTION_SERVICE", f"Retry attempt {attempt}/{max_retries} for step {step_id}")
+
+            result = self._execute_supervised_step(step, max_iterations)
+
+            if result.success:
+                if attempt > 0:
+                    logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} succeeded after {attempt} retries")
+                return result
+
+            if attempt < max_retries:
+                logger.warning("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed, attempting correction")
+                correction_result = self._execute_correction_step(step, result, max_iterations)
+
+                if correction_result.success:
+                    logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} corrected successfully")
+                    return correction_result
+
+        logger.error("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed after {max_retries} retries")
+        return result
+
+    def _execute_supervised_step(
+        self,
+        step: dict,
+        max_iterations: int
+    ) -> AgentOutput:
+        """Execute single supervised step with specialized agent."""
+        from core.logger import logger
+        from tests.test_utils.mock_agent import MockAgent
+
+        step_id = step.get("step_id")
+        description = step.get("description")
+        agent_type = step.get("agent_type")
+
+        logger.info("AGENT_EXECUTION_SERVICE", f"Executing step {step_id}", {
+            "description": description,
+            "agent_type": agent_type
+        })
+
+        agent = self._route_step_to_agent(step)
+
+        result = agent.run_iterative(
+            user_query=description,
+            scenario="auto",
+            max_iterations=max_iterations
+        )
+
+        if result.success:
+            validation_result = self._validate_step_result(step, result)
+            if not validation_result:
+                return AgentOutput(
+                    response=f"Step {step_id} validation failed",
+                    success=False,
+                    error="validation_failed"
+                )
+
+        return result
+
+    def _route_step_to_agent(self, step: dict):
+        """Route step to appropriate specialized agent."""
+        from core.logger import logger
+        from tests.test_utils.mock_agent import MockAgent
+
+        agent_type = step.get("agent_type", "general_agent")
+
+        logger.info("AGENT_EXECUTION_SERVICE", "Routing to agent", {"agent_type": agent_type})
+
+        agent = MockAgent(
+            self._llm,
+            self._tool_scheduler,
+            self._tool_registry,
+            self._memory_coordinator
+        )
+
+        return agent
+
+    def _validate_step_result(self, step: dict, result: AgentOutput) -> bool:
+        """Validate step execution result."""
+        from core.logger import logger
+
+        step_id = step.get("step_id")
+
+        if not result.success:
+            logger.warning("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed validation: not successful")
+            return False
+
+        if len(result.response) == 0:
+            logger.warning("AGENT_EXECUTION_SERVICE", f"Step {step_id} failed validation: empty response")
+            return False
+
+        logger.info("AGENT_EXECUTION_SERVICE", f"Step {step_id} validation passed")
+        return True
+
+    def _aggregate_step_results(self, query: str, step_results: list) -> str:
+        """Aggregate all step results into final response."""
+        response_parts = [f"Supervised workflow completed for query: {query}\n"]
+
+        for i, result in enumerate(step_results, 1):
+            response_parts.append(f"\nStep {i} result:")
+            response_parts.append(result.response[:200])
+            if len(result.response) > 200:
+                response_parts.append("...")
+
+        return "\n".join(response_parts)

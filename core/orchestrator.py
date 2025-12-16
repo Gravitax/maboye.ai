@@ -105,29 +105,12 @@ class Orchestrator:
         self._execution_service = AgentExecutionService(
             agent_repository=self._agent_repository,
             memory_coordinator=self._memory_coordinator,
-            agent_factory=self._agent_factory
+            agent_factory=self._agent_factory,
+            llm=self._llm,
+            tool_scheduler=self._tool_scheduler,
+            tool_registry=self._tool_registry
         )
         logger.info("ORCHESTRATOR", "Execution service initialized")
-
-        # 8. Register agents for testing
-        self._register_test_agents()
-
-    def _register_test_agents(self):
-        """Register agents for testing purposes."""
-        try:
-            with open("agents/profiles/readfile_agent.json", "r") as f:
-                profile = json.load(f)
-            
-            agent = RegisteredAgent.create_new(
-                name=profile["name"],
-                description=profile["description"],
-                system_prompt=profile["system_prompt"],
-                authorized_tools=profile["authorized_tools"]
-            )
-            self._agent_repository.save(agent)
-            logger.info("ORCHESTRATOR", f"Registered and activated test agent: {agent.get_agent_name()}")
-        except Exception as e:
-            logger.error("ORCHESTRATOR", f"Failed to register test agents: {e}")
 
     def get_agent_repository(self) -> InMemoryAgentRepository:
         """Get the agent repository."""
@@ -144,26 +127,44 @@ class Orchestrator:
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
         Process user input through the agent system.
+
+        Special commands:
+        - supervised_simple: Test supervised workflow with simple task
+        - supervised_analyze: Test supervised workflow with codebase analysis
+        - supervised_error: Test supervised workflow with error in step 2
+        - supervised:<query>: Run supervised workflow with custom query
         """
         logger.info("ORCHESTRATOR", "Processing user input", {
             "input_length": len(user_input)
         })
 
+        user_input_stripped = user_input.strip()
+
+        if user_input_stripped == "supervised_simple":
+            return self.process_user_input_supervised("simple task")
+        elif user_input_stripped == "supervised_analyze":
+            return self.process_user_input_supervised("analyze codebase")
+        elif user_input_stripped == "supervised_error":
+            return self.process_user_input_supervised("task with error")
+        elif user_input_stripped.startswith("supervised:"):
+            query = user_input_stripped[11:].strip()
+            return self.process_user_input_supervised(query)
+
         try:
             # For testing, use the MockAgent to run the test
-            test_name = user_input.strip()
-            
+            test_name = user_input_stripped
+
             mock_agent = MockAgent(
-                self._llm, 
-                self._tool_scheduler, 
-                self._tool_registry, 
+                self._llm,
+                self._tool_scheduler,
+                self._tool_registry,
                 self._memory_coordinator
             )
-            
+
             result = mock_agent.run(test_name)
-            
+
             return AgentOutput(
-                response=f"MockAgent test '{test_name}' completed.", 
+                response=f"MockAgent test '{test_name}' completed.",
                 success=result.get("success", False),
                 agent_id=mock_agent._identity.agent_id
             )
@@ -181,6 +182,58 @@ class Orchestrator:
             for item in memory:
                 print(item)
             print("--------------------\n")
+
+    def process_user_input_iterative(
+        self,
+        user_query: str,
+        scenario: str = "auto",
+        max_iterations: int = 10
+    ) -> AgentOutput:
+        """
+        Process user input through iterative agent workflow.
+
+        Args:
+            user_query: User query to process
+            scenario: Scenario for backend mock routing
+            max_iterations: Maximum iterations to prevent infinite loops
+
+        Returns:
+            AgentOutput with final response
+        """
+        logger.info("ORCHESTRATOR", "Processing iterative user input", {
+            "query_length": len(user_query),
+            "scenario": scenario,
+            "max_iterations": max_iterations
+        })
+
+        try:
+            mock_agent = MockAgent(
+                self._llm,
+                self._tool_scheduler,
+                self._tool_registry,
+                self._memory_coordinator
+            )
+
+            result = mock_agent.run_iterative(
+                user_query=user_query,
+                scenario=scenario,
+                max_iterations=max_iterations
+            )
+
+            logger.info("ORCHESTRATOR", "Iterative workflow completed", {
+                "success": result.success,
+                "agent_id": result.agent_id
+            })
+
+            return result
+
+        except Exception as error:
+            logger.error("ORCHESTRATOR", "Iterative workflow failed", {"error": str(error)})
+            return AgentOutput(
+                response=f"Error in iterative workflow: {error}",
+                success=False,
+                error=str(error)
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -238,10 +291,84 @@ class Orchestrator:
             agent_id = agent.get_agent_id()
             self._memory_coordinator.clear_agent_memory(agent_id)
             logger.info("ORCHESTRATOR", f"Cleared memory for agent {agent.get_agent_name()}")
-        
+
         # Also clear memory for the mock agent used in tests
         self._memory_coordinator.clear_agent_memory("mock_agent")
         logger.info("ORCHESTRATOR", "Cleared memory for mock_agent")
+
+    def process_user_input_supervised(
+        self,
+        user_query: str,
+        max_iterations: int = 10
+    ) -> AgentOutput:
+        """
+        Process user input through supervised multi-agent workflow.
+
+        Workflow:
+        1. Orchestrator agent generates TodoList from query
+        2. AgentExecutionService supervises execution of each step
+        3. Each step is validated before proceeding
+        4. Final aggregated result is returned
+
+        Args:
+            user_query: User query to process
+            max_iterations: Max iterations per agent step
+
+        Returns:
+            AgentOutput with final result
+        """
+        logger.info("ORCHESTRATOR", "Starting supervised workflow", {
+            "query": user_query,
+            "max_iterations": max_iterations
+        })
+
+        try:
+            todolist_json = self._generate_todolist(user_query)
+
+            todolist = json.loads(todolist_json)
+
+            logger.info("ORCHESTRATOR", "TodoList generated", {
+                "total_steps": todolist.get("total_steps", 0)
+            })
+
+            supervision_result = self._execution_service.supervise_todolist_execution(
+                todolist=todolist,
+                max_iterations=max_iterations
+            )
+
+            return supervision_result
+
+        except Exception as error:
+            logger.error("ORCHESTRATOR", "Supervised workflow failed", {
+                "error": str(error)
+            })
+            return AgentOutput(
+                response=f"Supervised workflow error: {error}",
+                success=False,
+                error=str(error)
+            )
+
+    def _generate_todolist(self, user_query: str) -> str:
+        """Generate TodoList using orchestrator agent."""
+        logger.info("ORCHESTRATOR", "Generating TodoList", {"query": user_query})
+
+        orchestrator_agent = MockAgent(
+            self._llm,
+            self._tool_scheduler,
+            self._tool_registry,
+            self._memory_coordinator
+        )
+
+        result = orchestrator_agent.run_iterative(
+            user_query=f"generate todolist: {user_query}",
+            scenario="auto",
+            max_iterations=1
+        )
+
+        if not result.success:
+            raise Exception(f"TodoList generation failed: {result.error}")
+
+        return result.response
 
     def get_memory_content(self, mem_type: str, agent_id: Optional[str] = None) -> list:
         """

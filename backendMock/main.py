@@ -51,6 +51,8 @@ from backendMock.utils import get_env_variable
 from backendMock.routes import tests
 from backendMock.routes import auth
 from backendMock.routes import chat
+from backendMock.routes import chat_iterative
+from backendMock.routes import todolist_generator
 from backendMock.routes import completion
 from backendMock.routes import models
 from backendMock.routes import embedding
@@ -76,6 +78,8 @@ app.add_middleware(
 app.include_router(tests.router)
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(chat_iterative.router)
+app.include_router(todolist_generator.router)
 app.include_router(completion.router)
 app.include_router(models.router)
 app.include_router(embedding.router)
@@ -125,6 +129,12 @@ def root():
             ],
             "tests": [
                 "POST /tests"
+            ],
+            "iterative": [
+                "POST /chat/iterative"
+            ],
+            "todolist": [
+                "POST /chat/generate_todolist"
             ]
         }
     }
