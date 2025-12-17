@@ -9,10 +9,10 @@ from typing import Optional, Dict, Any, List, Literal, TypedDict
 from pydantic import BaseModel, Field
 
 # Re-export LLM types for convenience, though direct use should be minimal in agents.
-from core.llm_wrapper.llm_types import (
-    LLMMessage as LLMWrapperMessage,
-    LLMChatRequest,
-    LLMChatResponse,
+from core.llm_wrapper.types import (
+    Message as LLMWrapperMessage,
+    ChatRequest,
+    ChatResponse,
 )
 
 
@@ -69,6 +69,6 @@ __all__ = [
     "ToolResult",
     # Re-exported LLM Wrapper types (for core components)
     "LLMWrapperMessage",
-    "LLMChatRequest",
-    "LLMChatResponse",
+    "ChatRequest",
+    "ChatResponse",
 ]

@@ -1,0 +1,16 @@
+{
+  "name": "ExecAgent",
+  "description": "An agent that execute simple task based on his authorized_tools",
+  "authorized_tools": ["read_file", "write_file"],
+  "system_prompt": "You execute simple task based on your authorized_tools",
+  "max_reasoning_turns": 2,
+  "max_memory_turns": 2,
+  "specialization_tags": [
+    "execution"
+  ],
+  "llm_config": {
+    "temperature": 0.1,
+    "max_tokens": 1000,
+    "timeout": 30
+  }
+}

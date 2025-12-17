@@ -2,7 +2,7 @@
 Modern Agent Implementation
 
 Agent with plan-based execution workflow.
-Uses AgentExecutionCoordinator to manage execution logic.
+Uses AgentExecution to manage execution logic.
 """
 
 from core.logger import logger
@@ -10,10 +10,10 @@ from core.llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import AgentIdentity, AgentCapabilities
-from core.services.agent_memory_coordinator import AgentMemoryCoordinator
-from core.services.agent_prompt_constructor import AgentPromptConstructor
+from core.services.memory_manager import MemoryManager
+from core.services.context_manager import ContextManager
 from core.services.plan_execution_service import PlanExecutionService, PlanExecutionError
-from core.services.agent_execution_coordinator import AgentExecutionCoordinator
+from core.services.agent_execution import AgentExecution
 from agents.types import AgentOutput
 
 
@@ -23,7 +23,7 @@ class Agent:
 
     Workflow:
     1. Build conversation messages with history
-    2. Delegate to AgentExecutionCoordinator for plan execution
+    2. Delegate to AgentExecution for plan execution
     3. Save results to memory and return output
 
     The execution coordinator handles:
@@ -39,35 +39,31 @@ class Agent:
         llm: LLMWrapper,
         tool_scheduler: ToolScheduler,
         tool_registry: ToolRegistry,
-        memory_coordinator: AgentMemoryCoordinator,
+        memory_manager: MemoryManager,
     ):
         self._identity = agent_identity
         self._capabilities = agent_capabilities
         self._llm = llm
         self._tool_scheduler = tool_scheduler
         self._tool_registry = tool_registry
-        self._memory_coordinator = memory_coordinator
+        self._memory_manager = memory_manager
 
         # Plan execution service
         self.plan_execution_service = PlanExecutionService(tool_scheduler, self._tool_registry)
 
-        # Prompt constructor
-        self._prompt_constructor = AgentPromptConstructor(
-            agent_capabilities=agent_capabilities,
-            memory_coordinator=memory_coordinator,
-            tool_registry=tool_registry
-        )
+        # Context manager for conversation history
+        self._context_manager = ContextManager(memory_manager._memory_repository)
 
         # Execution coordinator (handles plan execution logic)
-        self._execution_coordinator = AgentExecutionCoordinator(
+        self._execution_coordinator = AgentExecution(
             llm=llm,
             plan_execution_service=self.plan_execution_service,
-            memory_coordinator=memory_coordinator
+            memory=memory_manager
         )
 
         logger.info("AGENT", f"Agent initialized: {agent_identity.agent_name}")
 
-    def run(self, user_prompt: str) -> AgentOutput:
+    def run(self, user_prompt: str, system_prompt: str = "") -> AgentOutput:
         """
         Execute agent with plan-based workflow.
 
@@ -81,23 +77,26 @@ class Agent:
             "input_length": len(user_prompt)
         })
 
+        if len(system_prompt) > 0:
+            system_prompt += "\n" + system_prompt
+        else:
+            system_prompt = self._capabilities.system_prompt
         try:
-            # 1. Prepare conversation context
-            context = self._memory_coordinator.get_conversation_context(
-                agent_identity=self._identity,
+            # Build conversation messages with history using context manager
+            messages = self._context_manager.build_messages(
+                agent_id=self._identity.agent_id,
+                system_prompt=system_prompt,
                 max_turns=self._capabilities.max_memory_turns
             )
-            messages = self._prompt_constructor.build_conversation_messages(context)
-            messages.append({"role": "user", "content": user_prompt})
 
             # Save user query
-            self._memory_coordinator.save_conversation_turn(
+            self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="user",
                 content=user_prompt
             )
 
-            # 2. Execute via coordinator (handles plan execution, retry logic, etc.)
+            # Execute via coordinator (handles plan execution, retry logic, etc.)
             response = self._execution_coordinator.execute_with_retry(
                 messages=messages,
                 user_query=user_prompt,
@@ -108,7 +107,7 @@ class Agent:
             )
 
             # Save final response
-            self._memory_coordinator.save_conversation_turn(
+            self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="assistant",
                 content=response.response

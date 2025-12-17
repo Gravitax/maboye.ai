@@ -144,10 +144,7 @@ class LLMWrapper:
     def test_iterative(
         self,
         messages: List[Dict],
-        scenario: str = "auto",
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        timeout: Optional[int] = None
+        scenario: str = "auto"
     ) -> Dict:
         """
         Run iterative test workflow (for testing).
@@ -162,9 +159,7 @@ class LLMWrapper:
         Returns:
             Dictionary with test results
         """
-        return test_iterative.test_iterative(
-            self, messages, scenario, temperature, max_tokens, timeout
-        )
+        return test_iterative.test_iterative(self, messages, scenario)
 
     def close(self) -> None:
         """

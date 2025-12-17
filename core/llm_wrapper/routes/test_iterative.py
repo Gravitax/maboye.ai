@@ -10,10 +10,7 @@ from ...logger import logger
 def test_iterative(
     self,
     messages: List[Dict[str, Any]],
-    scenario: str = "auto",
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    timeout: Optional[int] = None
+    scenario: str = "auto"
 ) -> Dict[str, Any]:
     """
     Send messages to iterative test endpoint.
@@ -36,18 +33,14 @@ def test_iterative(
 
     request_data = {
         "messages": messages,
-        "scenario": scenario,
-        "temperature": temperature if temperature is not None else self.config.temperature,
-        "max_tokens": max_tokens if max_tokens is not None else self.config.max_tokens
+        "scenario": scenario
     }
-
-    request_timeout = timeout if timeout is not None else self.config.timeout
 
     try:
         response = self.session.post(
             url,
             json=request_data,
-            timeout=request_timeout
+            timeout=self.config.timeout
         )
         response.raise_for_status()
         data = response.json()

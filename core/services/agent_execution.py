@@ -9,11 +9,11 @@ from typing import Optional
 from core.logger import logger
 from core.domain import ExecutionPlan, ExecutionStep, ActionStep
 from core.services.plan_execution_service import PlanExecutionService, PlanExecutionResult
-from core.services.agent_memory_coordinator import AgentMemoryCoordinator
+from core.services.memory_manager import MemoryManager
 from agents.types import AgentOutput
 
 
-class AgentExecutionCoordinator:
+class AgentExecution:
     """
     Coordinates plan-based execution workflow for agents.
 
@@ -29,7 +29,7 @@ class AgentExecutionCoordinator:
         self,
         llm,
         plan_execution_service: PlanExecutionService,
-        memory_coordinator: AgentMemoryCoordinator
+        memory: MemoryManager
     ):
         """
         Initialize execution coordinator.
@@ -37,11 +37,11 @@ class AgentExecutionCoordinator:
         Args:
             llm: LLM wrapper for querying
             plan_execution_service: Service for executing plans
-            memory_coordinator: Coordinator for memory management
+            memory: Coordinator for memory management
         """
         self._llm = llm
         self._plan_execution_service = plan_execution_service
-        self._memory_coordinator = memory_coordinator
+        self._memory = memory
 
     def execute_with_retry(
         self,
@@ -76,6 +76,10 @@ class AgentExecutionCoordinator:
         for turn in range(max_turns):
             logger.info("EXECUTION_COORDINATOR", f"Plan execution turn {turn + 1}/{max_turns}")
 
+            # messages.append({
+            #     "role": "user",
+            #     "content": user_query
+            # })
             # Query LLM for execution plan
             llm_response = self._llm.chat(
                 messages,
@@ -203,7 +207,7 @@ class AgentExecutionCoordinator:
         """
         for step_result in plan_result.completed_steps:
             for action_result in step_result.action_results:
-                self._memory_coordinator.save_conversation_turn(
+                self._memory.save_conversation_turn(
                     agent_id=agent_id,
                     role="tool",
                     content=str(action_result.result),

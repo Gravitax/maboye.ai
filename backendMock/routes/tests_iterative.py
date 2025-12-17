@@ -39,9 +39,6 @@ class ChatIterativeResponse(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
 
 
-_conversation_states: Dict[str, Dict[str, Any]] = {}
-
-
 def _extract_scenario_from_messages(messages: List[Message]) -> str:
     """Extract scenario name from user messages."""
     for msg in messages:
@@ -289,102 +286,91 @@ def _generate_default_response(
 
 def _generate_todolist_from_query(query: str) -> str:
     """Generate TodoList JSON based on query."""
+    import json
+
     if "supervised_error" in query:
-        return """{
-  "todo_list": [
-    {
-      "step_id": "step_1",
-      "description": "First step that succeeds",
-      "agent_type": "general_agent",
-      "priority": 1,
-      "depends_on": null,
-      "metadata": {
-        "complexity": "low"
-      }
-    },
-    {
-      "step_id": "step_2",
-      "description": "supervised_error",
-      "agent_type": "error_agent",
-      "priority": 2,
-      "depends_on": "step_1",
-      "metadata": {
-        "complexity": "high",
-        "will_fail": true
-      }
-    },
-    {
-      "step_id": "step_3",
-      "description": "Third step that should not execute",
-      "agent_type": "general_agent",
-      "priority": 3,
-      "depends_on": "step_2",
-      "metadata": {
-        "complexity": "low"
-      }
-    }
-  ],
-  "query": \"""" + query + """\",
-  "total_steps": 3
-}"""
+        todolist = {
+            "todo_list": [
+                {
+                    "step_id": "step_1",
+                    "description": "First step that succeeds",
+                    "agent_type": "general_agent",
+                    "priority": 1,
+                    "depends_on": None,
+                    "metadata": {"complexity": "low"}
+                },
+                {
+                    "step_id": "step_2",
+                    "description": "supervised_error",
+                    "agent_type": "error_agent",
+                    "priority": 2,
+                    "depends_on": "step_1",
+                    "metadata": {"complexity": "high", "will_fail": True}
+                },
+                {
+                    "step_id": "step_3",
+                    "description": "Third step that should not execute",
+                    "agent_type": "general_agent",
+                    "priority": 3,
+                    "depends_on": "step_2",
+                    "metadata": {"complexity": "low"}
+                }
+            ],
+            "query": query,
+            "total_steps": 3
+        }
+        return json.dumps(todolist)
+
     elif "supervised_analyze" in query:
-        return """{
-  "todo_list": [
-    {
-      "step_id": "step_1",
-      "description": "List project files and understand structure",
-      "agent_type": "file_explorer",
-      "priority": 1,
-      "depends_on": null,
-      "metadata": {
-        "complexity": "low",
-        "estimated_tools": 2
-      }
-    },
-    {
-      "step_id": "step_2",
-      "description": "Read main entry point and core modules",
-      "agent_type": "file_reader",
-      "priority": 2,
-      "depends_on": "step_1",
-      "metadata": {
-        "complexity": "medium",
-        "estimated_tools": 3
-      }
-    },
-    {
-      "step_id": "step_3",
-      "description": "Analyze code patterns and architecture",
-      "agent_type": "code_analyst",
-      "priority": 3,
-      "depends_on": "step_2",
-      "metadata": {
-        "complexity": "high",
-        "estimated_tools": 2
-      }
-    }
-  ],
-  "query": \"""" + query + """\",
-  "total_steps": 3
-}"""
+        todolist = {
+            "todo_list": [
+                {
+                    "step_id": "step_1",
+                    "description": "List project files and understand structure",
+                    "agent_type": "file_explorer",
+                    "priority": 1,
+                    "depends_on": None,
+                    "metadata": {"complexity": "low", "estimated_tools": 2}
+                },
+                {
+                    "step_id": "step_2",
+                    "description": "Read main entry point and core modules",
+                    "agent_type": "file_reader",
+                    "priority": 2,
+                    "depends_on": "step_1",
+                    "metadata": {"complexity": "medium", "estimated_tools": 3}
+                },
+                {
+                    "step_id": "step_3",
+                    "description": "Analyze code patterns and architecture",
+                    "agent_type": "code_analyst",
+                    "priority": 3,
+                    "depends_on": "step_2",
+                    "metadata": {"complexity": "high", "estimated_tools": 2}
+                }
+            ],
+            "query": query,
+            "total_steps": 3
+        }
+        return json.dumps(todolist)
+
     elif "supervised_simple" in query:
-        return """{
-  "todo_list": [
-    {
-      "step_id": "step_1",
-      "description": "Execute task",
-      "agent_type": "general_agent",
-      "priority": 1,
-      "depends_on": null,
-      "metadata": {
-        "complexity": "low",
-        "estimated_tools": 1
-      }
-    }
-  ],
-  "query": \"""" + query + """\",
-  "total_steps": 1
-}"""
+        todolist = {
+            "todo_list": [
+                {
+                    "step_id": "step_1",
+                    "description": "Execute task",
+                    "agent_type": "general_agent",
+                    "priority": 1,
+                    "depends_on": None,
+                    "metadata": {"complexity": "low", "estimated_tools": 1}
+                }
+            ],
+            "query": query,
+            "total_steps": 1
+        }
+        return json.dumps(todolist)
+
     else:
         return None
 

@@ -12,7 +12,7 @@ from core.llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import RegisteredAgent
-from core.services.agent_memory_coordinator import AgentMemoryCoordinator
+from core.services.memory_manager import MemoryManager
 
 
 class AgentFactory:
@@ -32,7 +32,7 @@ class AgentFactory:
         llm: LLMWrapper,
         tool_scheduler: ToolScheduler,
         tool_registry: ToolRegistry,
-        memory_coordinator: AgentMemoryCoordinator
+        memory: MemoryManager
     ):
         """
         Initialize agent factory.
@@ -41,12 +41,12 @@ class AgentFactory:
             llm: LLM wrapper instance
             tool_scheduler: Tool scheduler instance
             tool_registry: Tool registry instance
-            memory_coordinator: Memory coordinator for agent-specific memory
+            memory: Memory coordinator for agent-specific memory
         """
         self._llm = llm
         self._tool_scheduler = tool_scheduler
         self._tool_registry = tool_registry
-        self._memory_coordinator = memory_coordinator
+        self._memory = memory
 
         # Cache of created agent instances (agent_id -> Agent)
         self._agent_instances: dict[str, 'Agent'] = {}
@@ -99,7 +99,7 @@ class AgentFactory:
             llm=self._llm,
             tool_scheduler=self._tool_scheduler,
             tool_registry=self._tool_registry,
-            memory_coordinator=self._memory_coordinator
+            memory=self._memory
         )
 
         # Cache the instance

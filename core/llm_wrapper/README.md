@@ -7,6 +7,6 @@ It encapsulates the specifics of different LLM providers, offering a unified int
 
 - `config.py`: Contains configuration settings and parameters related to LLM access and behavior.
 
-- `llm_types.py`: Defines custom data types, enums, and Pydantic models used specifically for LLM interactions and responses.
+- `types.py`: Defines custom data types, enums, and Pydantic models used specifically for LLM interactions and responses.
 
 - `llm_wrapper.py`: Implements the core logic for communicating with and processing responses from Large Language Models.

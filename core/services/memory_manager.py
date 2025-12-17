@@ -13,7 +13,7 @@ from core.domain.conversation_context import ConversationContext
 from core.services.cache_strategy import CacheStrategy, LRUCache
 
 
-class AgentMemoryCoordinator:
+class MemoryManager:
     """
     Coordinates memory access for multiple agents.
 
@@ -34,7 +34,7 @@ class AgentMemoryCoordinator:
         cache_strategy: Optional[CacheStrategy] = None
     ):
         """
-        Initialize memory coordinator.
+        Initialize memory.
 
         Args:
             memory_repository: Repository for memory persistence
@@ -203,13 +203,13 @@ class AgentMemoryCoordinator:
     def __str__(self) -> str:
         """String representation for logging."""
         return (
-            f"AgentMemoryCoordinator("
+            f"Memory("
             f"cache={self._cache})"
         )
 
     def __repr__(self) -> str:
         """Detailed representation for debugging."""
         return (
-            f"AgentMemoryCoordinator("
+            f"Memory("
             f"cache={repr(self._cache)})"
         )

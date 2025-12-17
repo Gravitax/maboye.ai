@@ -40,6 +40,9 @@ class Application:
                 description=profile["description"],
                 authorized_tools=profile["authorized_tools"],
                 system_prompt=profile["system_prompt"],
+                max_reasoning_turns=profile.get("max_reasoning_turns", 10),
+                max_memory_turns=profile.get("max_memory_turns", 10),
+                specialization_tags=profile.get("specialization_tags", []),
                 llm_temperature=llm_config.get("temperature", 0.7),
                 llm_max_tokens=llm_config.get("max_tokens", 1000),
                 llm_timeout=llm_config.get("timeout", 30)
