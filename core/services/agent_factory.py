@@ -51,8 +51,6 @@ class AgentFactory:
         # Cache of created agent instances (agent_id -> Agent)
         self._agent_instances: dict[str, 'Agent'] = {}
 
-        logger.info("AGENT_FACTORY", "Agent factory initialized")
-
     def create_agent(
         self,
         registered_agent: RegisteredAgent,
@@ -82,15 +80,7 @@ class AgentFactory:
 
         # Return cached instance if available
         if not force_recreate and agent_id in self._agent_instances:
-            logger.info("AGENT_FACTORY", "Returning cached agent", {
-                "agent_name": registered_agent.get_agent_name()
-            })
             return self._agent_instances[agent_id]
-
-        logger.info("AGENT_FACTORY", "Creating new agent instance", {
-            "agent_name": registered_agent.get_agent_name(),
-            "agent_id": agent_id
-        })
 
         # Create Agent with domain objects directly
         agent_instance = Agent(
@@ -99,16 +89,11 @@ class AgentFactory:
             llm=self._llm,
             tool_scheduler=self._tool_scheduler,
             tool_registry=self._tool_registry,
-            memory=self._memory
+            memory_manager=self._memory
         )
 
         # Cache the instance
         self._agent_instances[agent_id] = agent_instance
-
-        logger.info("AGENT_FACTORY", "Agent created and cached", {
-            "agent_name": registered_agent.get_agent_name()
-        })
-
         return agent_instance
 
     def get_cached_agent(self, agent_id: str) -> Optional['Agent']:
@@ -133,11 +118,9 @@ class AgentFactory:
         if agent_id:
             if agent_id in self._agent_instances:
                 del self._agent_instances[agent_id]
-                logger.info("AGENT_FACTORY", f"Cleared cache for agent {agent_id}")
         else:
             count = len(self._agent_instances)
             self._agent_instances.clear()
-            logger.info("AGENT_FACTORY", f"Cleared all cached agents ({count} instances)")
 
     def get_cache_stats(self) -> dict:
         """

@@ -81,13 +81,6 @@ def register_all_tools():
 
     for tool in all_tools:
         register_tool(tool)
-        logger.debug("TOOL_REGISTRY", f"Registered tool: {tool.name}")
-
-    logger.info("TOOL_REGISTRY", f"Registered {len(all_tools)} tools", {
-        "file_operations": len(file_tools),
-        "search": len(search_tools),
-        "bash_git": len(bash_tools)
-    })
 
 
 __all__ = [

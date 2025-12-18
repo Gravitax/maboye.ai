@@ -460,22 +460,8 @@ def test_iterative(request: ChatIterativeRequest):
             scenario = _extract_scenario_from_messages(request.messages)
 
         tool_results_count = _count_tool_results(request.messages)
-
-        logger.info("BACKEND_MOCK", "Iterative chat request", {
-            "scenario": scenario,
-            "message_count": len(request.messages),
-            "tool_results_count": tool_results_count
-        })
-
         response = _route_to_scenario_handler(scenario, request.messages, tool_results_count)
-
-        logger.info("BACKEND_MOCK", "Iterative chat response", {
-            "has_tool_calls": response.tool_calls is not None,
-            "is_final": response.tool_calls is None
-        })
-
         return response
 
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Iterative chat error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

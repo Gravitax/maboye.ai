@@ -61,7 +61,7 @@ class Agent:
             memory=memory_manager
         )
 
-        logger.info("AGENT", f"Agent initialized: {agent_identity.agent_name}")
+        pass
 
     def run(self, user_prompt: str, system_prompt: str = "") -> AgentOutput:
         """
@@ -72,11 +72,6 @@ class Agent:
         2. Delegate to execution coordinator for plan execution with retry
         3. Save results and return output
         """
-        logger.info("AGENT", "Starting agent execution", {
-            "agent_name": self._identity.agent_name,
-            "input_length": len(user_prompt)
-        })
-
         if len(system_prompt) > 0:
             system_prompt += "\n" + system_prompt
         else:
@@ -97,9 +92,9 @@ class Agent:
             )
 
             # Execute via coordinator (handles plan execution, retry logic, etc.)
-            response = self._execution_coordinator.execute_with_retry(
+            response = self._execution_coordinator.execute(
                 messages=messages,
-                user_query=user_prompt,
+                user_prompt=user_prompt,
                 agent_id=self._identity.agent_id,
                 max_turns=self._capabilities.max_reasoning_turns,
                 llm_temperature=self._capabilities.llm_temperature,
@@ -112,19 +107,9 @@ class Agent:
                 role="assistant",
                 content=response.response
             )
-
-            logger.info("AGENT", "Agent execution completed", {
-                "agent_name": self._identity.agent_name,
-                "response_length": len(response.response),
-                "success": response.success
-            })
             return response
 
         except (PlanExecutionError, Exception) as e:
-            logger.error("AGENT", "Agent execution failed", {
-                "agent_name": self._identity.agent_name,
-                "error": str(e)
-            })
             return AgentOutput(
                 response=f"Error: {str(e)}",
                 success=False,

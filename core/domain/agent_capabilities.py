@@ -121,9 +121,9 @@ class AgentCapabilities:
                 f"max_reasoning_turns too high: {self.max_reasoning_turns} (maximum 100)"
             )
 
-        if self.max_memory_turns < 1:
+        if self.max_memory_turns < 0:
             raise ValueError(
-                f"max_memory_turns must be >= 1, got {self.max_memory_turns}"
+                f"max_memory_turns must be >= 0, got {self.max_memory_turns}"
             )
 
         if self.max_memory_turns > 1000:

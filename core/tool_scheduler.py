@@ -50,8 +50,6 @@ class ToolScheduler:
         if not tool_calls:
             return results
 
-        logger.info("TOOL_SCHEDULER", f"Executing {len(tool_calls)} tool call(s)")
-
         for tool_call in tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
@@ -61,11 +59,6 @@ class ToolScheduler:
             try:
                 if not self._registry.has_tool(tool_name):
                     raise ToolError(f"Tool '{tool_name}' not found in registry.")
-
-                logger.debug("TOOL_SCHEDULER", "Executing tool", {
-                    "tool": tool_name,
-                    "args": tool_args
-                })
 
                 # The registry's execute method handles the full run cycle
                 execution_result = self._registry.execute(tool_name, **tool_args)
@@ -78,7 +71,6 @@ class ToolScheduler:
                 execution_time = time.time() - start_time
                 result_str = f"Error executing tool '{tool_name}': {e}"
                 success = False
-                logger.error("TOOL_SCHEDULER", result_str)
 
             results.append({
                 "tool_call_id": tool_call_id,

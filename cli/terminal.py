@@ -37,8 +37,6 @@ class Terminal:
         self._orchestrator = orchestrator
         self._command_manager = CommandManager(orchestrator=orchestrator, terminal=self)
 
-        logger.info("TERMINAL", "Terminal initialized")
-
     def print_message(
         self,
         message: str,
@@ -161,7 +159,6 @@ class Terminal:
         Returns:
             None to signal end of input.
         """
-        logger.info("TERMINAL", "EOF received")
         return None
 
     def _handle_keyboard_interrupt(self) -> None:
@@ -172,7 +169,6 @@ class Terminal:
             None to signal interrupted input.
         """
         self.print_message("", end="")
-        logger.info("TERMINAL", "Interrupted by user")
         return None
 
     def run(self, input_handler: Optional[Callable[[str], None]] = None) -> None:
@@ -185,7 +181,6 @@ class Terminal:
         self._initialize_loop()
         self._display_ascii_title()
         self._execute_input_loop(input_handler)
-        self._finalize_loop()
 
     def _initialize_loop(self) -> None:
         """Initialize the input loop."""
@@ -233,12 +228,7 @@ class Terminal:
         Args:
             error: The exception that occurred.
         """
-        logger.error("TERMINAL", "Input handler error", {"error": str(error)})
         self.print_message(f"Error: {error}", color=Color.RED, style=Color.BOLD)
-
-    def _finalize_loop(self) -> None:
-        """Finalize the input loop."""
-        logger.info("TERMINAL", "Interactive loop stopped")
 
     def stop(self) -> None:
         """Stop the interactive loop."""

@@ -73,7 +73,6 @@ def api_v1_completions(request: BackendMockCompletionRequest):
     try:
         return generate_text_completion(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Completions error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -83,7 +82,6 @@ def chat_v1_completions(request: BackendMockCompletionRequest):
     try:
         return generate_text_completion(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Completions error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -93,5 +91,4 @@ def code_v1_completions(request: BackendMockCompletionRequest):
     try:
         return generate_text_completion(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Completions error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

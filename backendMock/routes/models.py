@@ -61,7 +61,6 @@ def list_models_endpoint():
     try:
         return list_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -71,7 +70,6 @@ def api_v1_list_models():
     try:
         return list_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -81,7 +79,6 @@ def chat_v1_list_models():
     try:
         return list_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -91,5 +88,4 @@ def code_v1_list_models():
     try:
         return list_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

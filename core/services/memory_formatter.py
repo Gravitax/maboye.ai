@@ -103,15 +103,11 @@ class MemoryFormatter:
         while idx < len(turns):
             turn = turns[idx]
 
-            logger.info("[format_conversations]", "loop")
-
             if turn.get("role") == "user":
                 called_agents = []
                 # Start of a conversation
                 user_input = turn.get("content", "")
                 timestamp = turn.get("timestamp", "N/A")
-
-                logger.info("[format_conversations]", "user_input", {"user_input":user_input})
 
                 # Check metadata for agents called
                 metadata = turn.get("metadata", {})

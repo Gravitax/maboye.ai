@@ -59,23 +59,15 @@ class RequestSender:
             return ChatResponse(**data)
 
         except requests.ConnectionError as error:
-            logger.error("REQUEST_SENDER", "Connection failed", {"url": url})
             raise LLMWrapperError(f"Connection failed: {error}")
 
         except requests.Timeout as error:
-            logger.error("REQUEST_SENDER", "Request timeout", {"timeout": config.timeout})
             raise LLMWrapperError(f"Timeout after {config.timeout}s: {error}")
 
         except requests.HTTPError as error:
-            logger.error(
-                "REQUEST_SENDER",
-                "HTTP error",
-                {"status": response.status_code, "response": response.text}
-            )
             raise LLMWrapperError(f"HTTP {response.status_code}: {error}")
 
         except Exception as error:
-            logger.error("REQUEST_SENDER", "Unexpected error", {"error": str(error)})
             raise LLMWrapperError(f"Request failed: {error}")
 
     def send_get_request(
@@ -104,23 +96,15 @@ class RequestSender:
             return response.json()
 
         except requests.ConnectionError as error:
-            logger.error("REQUEST_SENDER", "Connection failed", {"url": url})
             raise LLMWrapperError(f"Connection failed: {error}")
 
         except requests.Timeout as error:
-            logger.error("REQUEST_SENDER", "Request timeout", {"timeout": config.timeout})
             raise LLMWrapperError(f"Timeout after {config.timeout}s: {error}")
 
         except requests.HTTPError as error:
-            logger.error(
-                "REQUEST_SENDER",
-                "HTTP error",
-                {"status": response.status_code, "response": response.text}
-            )
             raise LLMWrapperError(f"HTTP {response.status_code}: {error}")
 
         except Exception as error:
-            logger.error("REQUEST_SENDER", "Unexpected error", {"error": str(error)})
             raise LLMWrapperError(f"Request failed: {error}")
 
     def send_post_request(
@@ -155,21 +139,13 @@ class RequestSender:
             return response.json()
 
         except requests.ConnectionError as error:
-            logger.error("REQUEST_SENDER", "Connection failed", {"url": url})
             raise LLMWrapperError(f"Connection failed: {error}")
 
         except requests.Timeout as error:
-            logger.error("REQUEST_SENDER", "Request timeout", {"timeout": config.timeout})
             raise LLMWrapperError(f"Timeout after {config.timeout}s: {error}")
 
         except requests.HTTPError as error:
-            logger.error(
-                "REQUEST_SENDER",
-                "HTTP error",
-                {"status": response.status_code, "response": response.text}
-            )
             raise LLMWrapperError(f"HTTP {response.status_code}: {error}")
 
         except Exception as error:
-            logger.error("REQUEST_SENDER", "Unexpected error", {"error": str(error)})
             raise LLMWrapperError(f"Request failed: {error}")

@@ -117,9 +117,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Log shutdown event."""
-    logger.info("BACKEND_MOCK", "Server stopped", {
-        # "total_requests": backend_mock_instance.request_count # Cannot access request_count
-    })
+    pass
 
 
 if __name__ == "__main__":

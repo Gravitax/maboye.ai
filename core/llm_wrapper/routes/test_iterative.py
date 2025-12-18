@@ -2,7 +2,7 @@
 Test iterative route for LLM wrapper.
 """
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from ..errors import LLMWrapperError
 from ...logger import logger
 
@@ -47,13 +47,10 @@ def test_iterative(
         return data
 
     except requests.ConnectionError as error:
-        logger.error("LLM_WRAPPER", "Connection failed", {"url": url})
         raise LLMWrapperError(f"Connection failed: {error}")
 
     except requests.Timeout as error:
-        logger.error("LLM_WRAPPER", "Request timeout", {"timeout": self.config.timeout})
         raise LLMWrapperError(f"Timeout after {self.config.timeout}s: {error}")
 
     except requests.HTTPError as error:
-        logger.error("LLM_WRAPPER", "HTTP error", {"status": response.status_code})
         raise LLMWrapperError(f"HTTP {response.status_code}: {error}")

@@ -43,10 +43,10 @@ class AgentExecution:
         self._plan_execution_service = plan_execution_service
         self._memory = memory
 
-    def execute_with_retry(
+    def execute(
         self,
         messages: list,
-        user_query: str,
+        user_prompt: str,
         agent_id: str,
         max_turns: int,
         llm_temperature: float,
@@ -64,7 +64,7 @@ class AgentExecution:
 
         Args:
             messages: Conversation messages
-            user_query: Original user query
+            user_prompt: Original user query
             agent_id: Agent identifier
             max_turns: Maximum retry attempts
             llm_temperature: LLM temperature setting
@@ -74,13 +74,12 @@ class AgentExecution:
             AgentOutput with execution result
         """
         for turn in range(max_turns):
-            logger.info("EXECUTION_COORDINATOR", f"Plan execution turn {turn + 1}/{max_turns}")
+            if turn == 0:
+                messages.append({
+                    "role": "user",
+                    "content": user_prompt
+                })
 
-            # messages.append({
-            #     "role": "user",
-            #     "content": user_query
-            # })
-            # Query LLM for execution plan
             llm_response = self._llm.chat(
                 messages,
                 verbose=True,
@@ -90,7 +89,6 @@ class AgentExecution:
 
             message = llm_response.choices[0].message if llm_response.choices else None
             if not message:
-                logger.error("EXECUTION_COORDINATOR", "No message in LLM response")
                 return AgentOutput(
                     response="Error: No response from LLM",
                     success=False,
@@ -99,33 +97,48 @@ class AgentExecution:
                 )
 
             # Parse response to ExecutionPlan
-            execution_plan = self._parse_llm_response_to_plan(message, user_query)
+            execution_plan = self._parse_llm_response_to_plan(message, user_prompt)
 
             if execution_plan is None:
-                # LLM returned text response (no plan)
                 content = message.content or ""
-                logger.info("EXECUTION_COORDINATOR", "Text response received (no execution plan)")
                 return AgentOutput(
                     response=content,
                     success=True,
                     agent_id=agent_id
                 )
 
-            logger.info("EXECUTION_COORDINATOR", f"Executing plan with {len(execution_plan.steps)} steps")
+            # Log execution plan as JSON
+            self._log_execution_plan_json(execution_plan)
+
+            # Check for dangerous tools and ask confirmation
+            confirm_dangerous = self._check_dangerous_and_confirm(execution_plan)
+
+            if not confirm_dangerous:
+                return AgentOutput(
+                    response="Execution cancelled by user",
+                    success=False,
+                    error="user_cancelled_dangerous_tools",
+                    agent_id=agent_id
+                )
 
             # Execute plan
             plan_result = self._plan_execution_service.execute_plan(
                 execution_plan,
-                confirm_dangerous=True
+                confirm_dangerous=confirm_dangerous
             )
 
-            # Save execution results to memory
-            self._save_plan_execution_to_memory(plan_result, agent_id)
+            # Log execution results
+            self._log_execution_results(plan_result)
+
+            # Log step status
+            if plan_result.success:
+                logger.info("STEP_STATUS", "Success")
+            else:
+                logger.error("STEP_STATUS", f"Failed: {plan_result.error}")
 
             # Check if execution succeeded
             if plan_result.success:
                 response = self._format_success_response(plan_result)
-                logger.info("EXECUTION_COORDINATOR", "Plan execution succeeded")
                 return AgentOutput(
                     response=response,
                     success=True,
@@ -139,13 +152,7 @@ class AgentExecution:
                 "content": f"Execution failed: {error_message}. Please provide a corrected plan."
             })
 
-            logger.warning("EXECUTION_COORDINATOR", f"Plan execution failed, retrying...", {
-                "error": error_message,
-                "turn": turn + 1
-            })
-
         # Max turns reached
-        logger.error("EXECUTION_COORDINATOR", f"Max turns ({max_turns}) reached without success")
         return AgentOutput(
             response=f"Failed to execute successfully after {max_turns} attempts",
             success=False,
@@ -166,56 +173,136 @@ class AgentExecution:
             user_query: Original user query
 
         Returns:
-            ExecutionPlan if tool_calls present, None otherwise
+            ExecutionPlan if tool_calls or JSON content present, None otherwise
         """
-        # If no tool_calls, it's a text response
-        if not message.tool_calls:
-            return None
+        # Try parsing tool_calls first
+        if message.tool_calls:
+            steps = []
+            for idx, tool_call in enumerate(message.tool_calls):
+                action = ActionStep(
+                    tool_name=tool_call.function.get("name"),
+                    arguments=tool_call.function.get("arguments", {}),
+                    description=f"Execute {tool_call.function.get('name')}"
+                )
+                step = ExecutionStep(
+                    step_number=idx + 1,
+                    description=f"Step {idx + 1}: {tool_call.function.get('name')}",
+                    actions=[action]
+                )
+                steps.append(step)
 
-        # Parse tool_calls into ExecutionPlan
-        steps = []
-        for idx, tool_call in enumerate(message.tool_calls):
-            action = ActionStep(
-                tool_name=tool_call.function.get("name"),
-                arguments=tool_call.function.get("arguments", {}),
-                description=f"Execute {tool_call.function.get('name')}"
-            )
-            step = ExecutionStep(
-                step_number=idx + 1,
-                description=f"Step {idx + 1}: {tool_call.function.get('name')}",
-                actions=[action]
-            )
-            steps.append(step)
+            if steps:
+                return ExecutionPlan(user_query=user_query, steps=steps)
 
-        if not steps:
-            return None
+        # Try parsing JSON from content
+        if message.content:
+            plan = self._parse_json_plan_from_content(message.content, user_query)
+            if plan:
+                return plan
+        return None
 
-        logger.info("EXECUTION_COORDINATOR", f"Parsed {len(steps)} steps from LLM response")
-        return ExecutionPlan(user_query=user_query, steps=steps)
-
-    def _save_plan_execution_to_memory(
-        self,
-        plan_result: PlanExecutionResult,
-        agent_id: str
-    ) -> None:
+    def _parse_json_plan_from_content(self, content: str, user_query: str) -> Optional[ExecutionPlan]:
         """
-        Save plan execution results to memory.
+        Parse execution plan from JSON in message content.
 
         Args:
-            plan_result: Execution result from PlanExecutionService
-            agent_id: Agent identifier
+            content: Message content containing JSON
+            user_query: Original user query
+
+        Returns:
+            ExecutionPlan if valid JSON found, None otherwise
         """
+        import json
+        import re
+
+        try:
+            content_stripped = content.strip()
+
+            # Extract JSON from markdown code blocks if wrapped
+            json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content_stripped, re.DOTALL)
+            if json_match:
+                content_stripped = json_match.group(1).strip()
+
+            # Remove timestamp prefix if present
+            content_stripped = re.sub(r'^\[\d{2}:\d{2}:\d{2}\]\s*', '', content_stripped)
+
+            plan_data = json.loads(content_stripped)
+
+            if "steps" not in plan_data:
+                return None
+
+            steps = []
+            for step_data in plan_data["steps"]:
+                actions = []
+                for action_data in step_data.get("actions", []):
+                    action = ActionStep(
+                        tool_name=action_data.get("tool_name"),
+                        arguments=action_data.get("arguments", {}),
+                        description=action_data.get("description", "")
+                    )
+                    actions.append(action)
+
+                step = ExecutionStep(
+                    step_number=step_data.get("step_number"),
+                    description=step_data.get("description", ""),
+                    actions=actions
+                )
+                steps.append(step)
+
+            if not steps:
+                return None
+
+            return ExecutionPlan(user_query=user_query, steps=steps)
+
+        except json.JSONDecodeError:
+            return None
+        except Exception as e:
+            return None
+
+    def _log_execution_plan_json(self, execution_plan: ExecutionPlan) -> None:
+        """Log execution plan as complete JSON."""
+        import json
+
+        plan_dict = {
+            "steps": []
+        }
+
+        for step in execution_plan.steps:
+            step_dict = {
+                "step_number": step.step_number,
+                "description": step.description,
+                "actions": []
+            }
+            for action in step.actions:
+                action_dict = {
+                    "tool_name": action.tool_name,
+                    "arguments": action.arguments,
+                    "description": action.description
+                }
+                step_dict["actions"].append(action_dict)
+            plan_dict["steps"].append(step_dict)
+
+        plan_json = json.dumps(plan_dict, indent=2, ensure_ascii=False)
+        logger.info("EXECUTION_PLAN", f"\n{plan_json}")
+
+    def _log_execution_results(self, plan_result: PlanExecutionResult) -> None:
+        """Log execution results in readable format."""
         for step_result in plan_result.completed_steps:
             for action_result in step_result.action_results:
-                self._memory.save_conversation_turn(
-                    agent_id=agent_id,
-                    role="tool",
-                    content=str(action_result.result),
-                    metadata={
-                        "tool_name": action_result.tool_name,
-                        "success": action_result.success
-                    }
-                )
+                status = "OK" if action_result.success else "FAILED"
+                result_str = str(action_result.result)
+
+                # Format result based on type
+                if len(result_str) > 300:
+                    result_preview = result_str[:300] + "..."
+                else:
+                    result_preview = result_str
+
+                logger.info("TOOL_EXEC", f"{action_result.tool_name}: {status}")
+                if action_result.success:
+                    logger.info("TOOL_RESULT", f"{result_preview}")
+                else:
+                    logger.error("TOOL_ERROR", f"{result_preview}")
 
     def _format_success_response(self, plan_result: PlanExecutionResult) -> str:
         """
@@ -257,3 +344,43 @@ class AgentExecution:
                 return f"Step {step_result.step_number} failed: {step_result.error}"
 
         return "Unknown error"
+
+    def _check_dangerous_and_confirm(self, execution_plan: ExecutionPlan) -> bool:
+        """
+        Check if plan contains dangerous tools and ask user confirmation.
+
+        Args:
+            execution_plan: Plan to check
+
+        Returns:
+            True if user confirms or no dangerous tools, False otherwise
+        """
+        tool_registry = self._plan_execution_service._tool_registry
+
+        if not execution_plan.is_dangerous(tool_registry):
+            return True
+
+        dangerous_tools = []
+        for step in execution_plan.steps:
+            for action in step.actions:
+                tool = tool_registry.get_tool(action.tool_name)
+                if tool and tool.is_dangerous:
+                    dangerous_tools.append({
+                        "name": action.tool_name,
+                        "args": action.arguments
+                    })
+
+        if not dangerous_tools:
+            return True
+
+        logger.warning("EXECUTION_PLAN", "Dangerous tool(s) detected")
+
+        for tool_info in dangerous_tools:
+            args_str = ", ".join(f"{k}={v}" for k, v in tool_info["args"].items())
+            print(f"  - {tool_info['name']}({args_str})")
+
+        try:
+            response = input("\nAre you sure you want to execute these dangerous commands? (yes/no): ")
+            return response.lower() in ['yes', 'y']
+        except (KeyboardInterrupt, EOFError):
+            return False

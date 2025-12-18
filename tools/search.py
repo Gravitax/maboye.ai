@@ -36,7 +36,6 @@ def glob_files(
     base_path = Path(path).resolve()
 
     if not base_path.exists():
-        logger.error("SEARCH", "Path not found", {"path": str(base_path)})
         raise SearchError(f"Path not found: {path}")
 
     try:
@@ -54,21 +53,9 @@ def glob_files(
 
         # Sort by modification time (most recent first)
         files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
-
-        logger.info("SEARCH", "Glob search completed", {
-            "pattern": pattern,
-            "path": str(base_path),
-            "matches": len(files)
-        })
-
         return files
 
     except Exception as e:
-        logger.error("SEARCH", "Glob search failed", {
-            "pattern": pattern,
-            "path": str(base_path),
-            "error": str(e)
-        })
         raise SearchError(f"Glob search failed: {e}")
 
 
@@ -99,7 +86,6 @@ def grep_content(
     base_path = Path(path).resolve()
 
     if not base_path.exists():
-        logger.error("SEARCH", "Path not found", {"path": str(base_path)})
         raise SearchError(f"Path not found: {path}")
 
     try:
@@ -166,26 +152,10 @@ def grep_content(
                 # Skip binary files
                 continue
             except Exception as e:
-                logger.warning("SEARCH", "Failed to search file", {
-                    "file": file_path,
-                    "error": str(e)
-                })
                 continue
-
-        logger.info("SEARCH", "Grep search completed", {
-            "pattern": pattern,
-            "files_searched": results["files_searched"],
-            "matches_found": results["matches_found"]
-        })
-
         return results
 
     except Exception as e:
-        logger.error("SEARCH", "Grep search failed", {
-            "pattern": pattern,
-            "path": str(base_path),
-            "error": str(e)
-        })
         raise SearchError(f"Grep search failed: {e}")
 
 
@@ -210,11 +180,9 @@ def list_directory(
     dir_path = Path(path).resolve()
 
     if not dir_path.exists():
-        logger.error("SEARCH", "Directory not found", {"path": str(dir_path)})
         raise SearchError(f"Directory not found: {path}")
 
     if not dir_path.is_dir():
-        logger.error("SEARCH", "Not a directory", {"path": str(dir_path)})
         raise SearchError(f"Not a directory: {path}")
 
     try:
@@ -244,19 +212,9 @@ def list_directory(
 
         # Sort: directories first, then by name
         items.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
-
-        logger.debug("SEARCH", "Directory listed", {
-            "path": str(dir_path),
-            "items": len(items)
-        })
-
         return items
 
     except Exception as e:
-        logger.error("SEARCH", "List directory failed", {
-            "path": str(dir_path),
-            "error": str(e)
-        })
         raise SearchError(f"Failed to list directory: {e}")
 
 
@@ -543,13 +501,7 @@ def code_search_ripgrep(
     base_path = Path(path).resolve()
 
     if not base_path.exists():
-        logger.error("SEARCH", "Path not found", {"path": str(base_path)})
         raise SearchError(f"Path not found: {path}")
-
-    logger.info("SEARCH", "Running ripgrep code search", {
-        "pattern": pattern,
-        "path": str(base_path)
-    })
 
     cmd = _build_ripgrep_command(
         pattern,
@@ -562,13 +514,6 @@ def code_search_ripgrep(
 
     output = _execute_ripgrep(cmd)
     results = _process_ripgrep_output(output, pattern)
-
-    logger.info("SEARCH", "Ripgrep search completed", {
-        "pattern": pattern,
-        "files_searched": results["files_searched"],
-        "matches_found": results["matches_found"]
-    })
-
     return results
 
 
@@ -605,9 +550,7 @@ def code_search(
                 context_lines
             )
         except SearchError as e:
-            logger.warning("SEARCH", "Ripgrep failed, using fallback", {
-                "error": str(e)
-            })
+            pass
 
     return grep_content(
         pattern=pattern,

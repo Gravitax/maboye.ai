@@ -1,3 +1,0 @@
-"""
-Execution workflow integration tests.
-"""

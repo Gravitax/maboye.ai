@@ -3,11 +3,6 @@ Unified Logger for Backend Services
 
 Provides configurable logging with console and file output.
 Supports log levels, rotation, and environment-based configuration.
-
-Usage:
-    from core.logger import logger
-    logger.info('STARTUP', 'Server started')
-    logger.error('API', 'Request failed', {'code': 500})
 """
 import inspect
 import os

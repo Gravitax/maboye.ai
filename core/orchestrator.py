@@ -50,80 +50,50 @@ class Orchestrator:
         self._tool_scheduler: ToolScheduler
         self._tool_registry: Any
 
-        # Domain architecture components
-        self._memory_repository: InMemoryMemoryRepository
-        self._agent_repository: InMemoryAgentRepository
-        self._memory_manager: MemoryManager
-        self._memory_formatter: MemoryFormatter
-        self._execution_manager: ExecutionManager
-        self._context_manager: ContextManager
-
-        logger.info("ORCHESTRATOR", "Initializing orchestrator components")
         self._setup_components()
-        logger.info("ORCHESTRATOR", "Orchestrator initialized successfully")
 
     def _setup_components(self) -> None:
         """Setup all orchestrator components in correct order."""
 
-        # 1. Initialize repositories
+        # Initialize repositories
         self._memory_repository = InMemoryMemoryRepository()
         self._agent_repository = InMemoryAgentRepository()
-        logger.info("ORCHESTRATOR", "Repositories initialized")
 
-        # 2. Initialize memory coordinator with LRU cache
+        # Initialize memory coordinator with LRU cache
         cache_strategy = LRUCache(max_size=100)
         self._memory_manager = MemoryManager(
             memory_repository=self._memory_repository,
             cache_strategy=cache_strategy
         )
-        logger.info("ORCHESTRATOR", "Memory coordinator initialized")
 
-        # 3. Register tools
+        # Initialize memory formatter
+        self._memory_formatter = MemoryFormatter(self._memory_repository)
+        # Register tools
         register_all_tools()
         self._tool_registry = get_registry()
-        logger.info("ORCHESTRATOR", "Tools registered", {
-            "count": len(self._tool_registry.list_tools())
-        })
-
-        # 4. Initialize LLM wrapper
-        self._llm = LLMWrapper(self._llm_config)
-        logger.info("ORCHESTRATOR", "LLM wrapper initialized")
-
-        # 5. Initialize tool scheduler
+        # Initialize tool scheduler
         self._tool_scheduler = ToolScheduler(registry=self._tool_registry)
-        logger.info("ORCHESTRATOR", "Tool scheduler initialized")
-
+        # Initialize LLM wrapper
+        self._llm = LLMWrapper(self._llm_config)
         # Initialize context manager
         self._context_manager = ContextManager(self._memory_repository)
-        logger.info("ORCHESTRATOR", "Context manager initialized")
-
-        # ===== OPTION B: Initialize AgentFactory (commented for future use) =====
-        # # 6. Initialize agent factory for creating specialized agents
-        # from core.services import AgentFactory
-        # self._agent_factory = AgentFactory(
-        #     llm=self._llm,
-        #     tool_scheduler=self._tool_scheduler,
-        #     tool_registry=self._tool_registry,
-        #     memory=self._memory_manager
-        # )
-        # logger.info("ORCHESTRATOR", "Agent factory initialized")
-        # ========================================================================
-
+        # Initialize agent factory for creating specialized agents
+        self._agent_factory = AgentFactory(
+            llm=self._llm,
+            tool_scheduler=self._tool_scheduler,
+            tool_registry=self._tool_registry,
+            memory=self._memory_manager
+        )
         # Initialize execution manager
         self._execution_manager = ExecutionManager(
             llm=self._llm,
             tool_scheduler=self._tool_scheduler,
             tool_registry=self._tool_registry,
             memory_manager=self._memory_manager,
-            context_manager=self._context_manager
-            # agent_factory=self._agent_factory,  # Option B: pass factory for routing
-            # agent_repository=self._agent_repository  # Option B: pass repository
+            context_manager=self._context_manager,
+            agent_factory=self._agent_factory,
+            agent_repository=self._agent_repository
         )
-        logger.info("ORCHESTRATOR", "Execution manager initialized")
-
-        # Initialize memory formatter
-        self._memory_formatter = MemoryFormatter(self._memory_repository)
-        logger.info("ORCHESTRATOR", "Memory formatter initialized")
 
     def get_agent_repository(self) -> InMemoryAgentRepository:
         """Get the agent repository."""
@@ -178,15 +148,12 @@ class Orchestrator:
         Returns:
             AgentOutput with final result
         """
-        logger.info("ORCHESTRATOR", "Processing user input with autonomous workflow")
-
         user_input = user_input.strip()
         # Get conversation context from orchestrator history
         context = self._context_manager.format_context_as_string(
             agent_id="orchestrator",
             max_turns=10
         )
-        logger.info("ORCHESTRATOR", "context", {"context":context})
 
         # Generate unique conversation ID
         conversation_id = f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
@@ -206,7 +173,6 @@ class Orchestrator:
             return result
 
         except Exception as e:
-            logger.error("ORCHESTRATOR", "Execution failed", {"error": str(e)})
             result = AgentOutput(
                 response=f"Error executing: {e}",
                 success=False,
@@ -244,12 +210,10 @@ class Orchestrator:
         for agent in active_agents:
             agent_id = agent.get_agent_id()
             self._memory_manager.clear_agent_memory(agent_id)
-            logger.info("ORCHESTRATOR", f"Cleared memory for agent {agent.get_agent_name()}")
 
         # Also clear memory for orchestrator and mock agent
         self._memory_manager.clear_agent_memory("orchestrator")
         self._memory_manager.clear_agent_memory("mock_agent")
-        logger.info("ORCHESTRATOR", "Cleared memory for orchestrator and mock_agent")
 
     def get_memory_manager_content(self, mem_type: str, agent_id: Optional[str] = None) -> list:
         """

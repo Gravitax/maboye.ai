@@ -21,5 +21,4 @@ class ResetCommand(BaseCommand):
         """Execute reset command."""
         self._orchestrator.reset_conversation()
         print("\nConversation history has been reset.\n")
-        logger.info("CLI_COMMAND", "Conversation memory reset by user.")
         return True

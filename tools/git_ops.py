@@ -61,15 +61,9 @@ def git_init(path: str = ".") -> bool:
     """
     try:
         result = run_command("git init", cwd=path, check=True)
-
-        logger.info("GIT", "Repository initialized", {"path": path})
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to initialize repository", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to initialize repository: {e}")
 
 
@@ -94,19 +88,9 @@ def git_status(path: str = ".", porcelain: bool = False) -> str:
     try:
         cmd = "git status --porcelain" if porcelain else "git status"
         result = run_command(cmd, cwd=path, check=True)
-
-        logger.debug("GIT", "Status retrieved", {
-            "path": path,
-            "porcelain": porcelain
-        })
-
         return result.stdout
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to get status", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to get status: {e}")
 
 
@@ -142,20 +126,9 @@ def git_add(
             cmd = f"git add {file_args}"
 
         result = run_command(cmd, cwd=path, check=True)
-
-        logger.info("GIT", "Files staged", {
-            "path": path,
-            "all": all_files,
-            "count": len(files) if not all_files else "all"
-        })
-
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to stage files", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to stage files: {e}")
 
 
@@ -196,20 +169,9 @@ def git_commit(
         # Extract commit hash
         hash_result = run_command("git rev-parse HEAD", cwd=path, check=True)
         commit_hash = hash_result.stdout.strip()
-
-        logger.info("GIT", "Commit created", {
-            "path": path,
-            "hash": commit_hash,
-            "message": message[:50]
-        })
-
         return commit_hash
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to create commit", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to create commit: {e}")
 
 
@@ -243,20 +205,9 @@ def git_diff(
             cmd += f" -- {file_args}"
 
         result = run_command(cmd, cwd=path, check=True)
-
-        logger.debug("GIT", "Diff retrieved", {
-            "path": path,
-            "staged": staged,
-            "files": len(files) if files else "all"
-        })
-
         return result.stdout
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to get diff", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to get diff: {e}")
 
 
@@ -288,19 +239,9 @@ def git_log(
             cmd += " --oneline"
 
         result = run_command(cmd, cwd=path, check=True)
-
-        logger.debug("GIT", "Log retrieved", {
-            "path": path,
-            "max_count": max_count
-        })
-
         return result.stdout
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to get log", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to get log: {e}")
 
 
@@ -337,19 +278,9 @@ def git_branch(
                 if line.startswith("* "):
                     line = line[2:]
                 branches.append(line)
-
-        logger.debug("GIT", "Branches listed", {
-            "path": path,
-            "count": len(branches)
-        })
-
         return branches
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to list branches", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to list branches: {e}")
 
 
@@ -379,21 +310,9 @@ def git_checkout(
     try:
         cmd = f"git checkout {'-b ' if create else ''}'{branch}'"
         result = run_command(cmd, cwd=path, check=True)
-
-        logger.info("GIT", "Branch checked out", {
-            "path": path,
-            "branch": branch,
-            "created": create
-        })
-
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to checkout branch", {
-            "path": path,
-            "branch": branch,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to checkout branch: {e}")
 
 
@@ -416,19 +335,9 @@ def git_current_branch(path: str = ".") -> str:
     try:
         result = run_command("git branch --show-current", cwd=path, check=True)
         branch = result.stdout.strip()
-
-        logger.debug("GIT", "Current branch retrieved", {
-            "path": path,
-            "branch": branch
-        })
-
         return branch
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to get current branch", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to get current branch: {e}")
 
 
@@ -461,20 +370,9 @@ def git_pull(
             cmd += f" {branch}"
 
         result = run_command(cmd, cwd=path, check=True, timeout=60)
-
-        logger.info("GIT", "Pulled from remote", {
-            "path": path,
-            "remote": remote,
-            "branch": branch or "current"
-        })
-
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to pull", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to pull: {e}")
 
 
@@ -509,21 +407,9 @@ def git_push(
             cmd += f" {branch}"
 
         result = run_command(cmd, cwd=path, check=True, timeout=60)
-
-        logger.info("GIT", "Pushed to remote", {
-            "path": path,
-            "remote": remote,
-            "branch": branch or "current",
-            "set_upstream": set_upstream
-        })
-
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to push", {
-            "path": path,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to push: {e}")
 
 
@@ -552,18 +438,7 @@ def git_clone(
             cmd += f" -b {branch}"
 
         result = run_command(cmd, check=True, timeout=120)
-
-        logger.info("GIT", "Repository cloned", {
-            "url": url,
-            "destination": destination,
-            "branch": branch
-        })
-
         return True
 
     except CommandExecutionError as e:
-        logger.error("GIT", "Failed to clone repository", {
-            "url": url,
-            "error": str(e)
-        })
         raise GitOperationError(f"Failed to clone repository: {e}")

@@ -1,3 +1,0 @@
-Sample text file for testing read operations.
-This file contains multiple lines.
-Line 3 of the file.

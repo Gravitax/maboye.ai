@@ -38,8 +38,6 @@ class CommandManager:
         if orchestrator:
             self._load_external_commands()
 
-        logger.info("COMMAND_MANAGER", "Command manager initialized")
-
     def _setup_built_in_commands(self) -> None:
         """Setup built-in commands."""
         self._register_command("help", self._execute_help, "Show available commands")
@@ -54,8 +52,6 @@ class CommandManager:
         for cmd_name, (handler, description) in commands.items():
             self._configure_command_handler(handler)
             self._register_command(cmd_name, handler, description)
-
-        logger.info("COMMAND_MANAGER", f"Loaded {len(commands)} external commands")
 
     def _configure_command_handler(self, handler: Callable) -> None:
         """
@@ -85,8 +81,6 @@ class CommandManager:
             "handler": handler,
             "description": description
         }
-
-        logger.debug("COMMAND_MANAGER", f"Registered command: /{name}")
 
     def register_command(
         self,
@@ -170,8 +164,6 @@ class CommandManager:
         if not self.has_command(cmd_name):
             self._handle_unknown_command(cmd_name)
             return True
-
-        logger.debug("COMMAND_MANAGER", f"Executing command: /{cmd_name}")
 
         continue_running = self._commands[cmd_name]["handler"](args)
 
@@ -264,7 +256,6 @@ class CommandManager:
         if self._terminal:
             self._terminal.print_message("\nExiting...", color=Color.YELLOW)
 
-        logger.info("COMMAND_MANAGER", "Exit command received")
         return False
 
     def _execute_clear(self, args: list) -> bool:

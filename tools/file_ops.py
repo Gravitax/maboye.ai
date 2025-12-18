@@ -49,11 +49,9 @@ def read_file(
     path = Path(file_path)
 
     if not path.exists():
-        logger.error("FILE_OPS", "File not found", {"path": str(path)})
         raise FileNotFoundError(f"File not found: {file_path}")
 
     if not path.is_file():
-        logger.error("FILE_OPS", "Not a file", {"path": str(path)})
         raise FileOperationError(f"Not a file: {file_path}")
 
     try:
@@ -68,25 +66,12 @@ def read_file(
             lines = lines[:limit]
 
         content = ''.join(lines)
-
-        logger.debug("FILE_OPS", "File read", {
-            "path": str(path),
-            "lines": len(lines),
-            "offset": offset,
-            "limit": limit
-        })
-
         return content
 
     except PermissionError:
-        logger.error("FILE_OPS", "Permission denied", {"path": str(path)})
         raise FilePermissionError(f"Permission denied: {file_path}")
 
     except UnicodeDecodeError as e:
-        logger.error("FILE_OPS", "Encoding error", {
-            "path": str(path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Cannot decode file: {file_path}")
 
 
@@ -116,30 +101,15 @@ def write_file(
         # Create parent directories if needed
         if create_dirs and not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            logger.debug("FILE_OPS", "Created directories", {
-                "path": str(path.parent)
-            })
-
         # Write file
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
-
-        logger.info("FILE_OPS", "File written", {
-            "path": str(path),
-            "size": len(content)
-        })
-
         return True
 
     except PermissionError:
-        logger.error("FILE_OPS", "Permission denied", {"path": str(path)})
         raise FilePermissionError(f"Permission denied: {file_path}")
 
     except Exception as e:
-        logger.error("FILE_OPS", "Write failed", {
-            "path": str(path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Failed to write file: {e}")
 
 
@@ -168,7 +138,6 @@ def edit_file(
     path = Path(file_path)
 
     if not path.exists():
-        logger.error("FILE_OPS", "File not found", {"path": str(path)})
         raise FileNotFoundError(f"File not found: {file_path}")
 
     try:
@@ -178,10 +147,6 @@ def edit_file(
 
         # Check if old_string exists
         if old_string not in content:
-            logger.warning("FILE_OPS", "String not found in file", {
-                "path": str(path),
-                "search": old_string[:50]
-            })
             raise FileOperationError(f"String not found in file: {file_path}")
 
         # Replace
@@ -195,22 +160,12 @@ def edit_file(
         # Write back
         with open(path, 'w', encoding='utf-8') as f:
             f.write(new_content)
-
-        logger.info("FILE_OPS", "File edited", {
-            "path": str(path),
-            "replacements": count
-        })
-
         return True
 
     except FileOperationError:
         raise
 
     except Exception as e:
-        logger.error("FILE_OPS", "Edit failed", {
-            "path": str(path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Failed to edit file: {e}")
 
 
@@ -226,12 +181,6 @@ def file_exists(file_path: str) -> bool:
     """
     path = Path(file_path)
     exists = path.exists() and path.is_file()
-
-    logger.debug("FILE_OPS", "File exists check", {
-        "path": str(path),
-        "exists": exists
-    })
-
     return exists
 
 
@@ -251,7 +200,6 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
     path = Path(file_path)
 
     if not path.exists():
-        logger.error("FILE_OPS", "File not found", {"path": str(path)})
         raise FileNotFoundError(f"File not found: {file_path}")
 
     try:
@@ -269,19 +217,9 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
             "writable": os.access(path, os.W_OK),
             "executable": os.access(path, os.X_OK)
         }
-
-        logger.debug("FILE_OPS", "File info retrieved", {
-            "path": str(path),
-            "size": info["size"]
-        })
-
         return info
 
     except Exception as e:
-        logger.error("FILE_OPS", "Failed to get file info", {
-            "path": str(path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Failed to get file info: {e}")
 
 
@@ -302,25 +240,16 @@ def delete_file(file_path: str) -> bool:
     path = Path(file_path)
 
     if not path.exists():
-        logger.error("FILE_OPS", "File not found", {"path": str(path)})
         raise FileNotFoundError(f"File not found: {file_path}")
 
     try:
         path.unlink()
-
-        logger.info("FILE_OPS", "File deleted", {"path": str(path)})
-
         return True
 
     except PermissionError:
-        logger.error("FILE_OPS", "Permission denied", {"path": str(path)})
         raise FilePermissionError(f"Permission denied: {file_path}")
 
     except Exception as e:
-        logger.error("FILE_OPS", "Delete failed", {
-            "path": str(path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Failed to delete file: {e}")
 
 
@@ -345,23 +274,11 @@ def copy_file(source: str, destination: str) -> bool:
     dst_path = Path(destination)
 
     if not src_path.exists():
-        logger.error("FILE_OPS", "Source not found", {"path": str(src_path)})
         raise FileNotFoundError(f"Source not found: {source}")
 
     try:
         shutil.copy2(src_path, dst_path)
-
-        logger.info("FILE_OPS", "File copied", {
-            "source": str(src_path),
-            "destination": str(dst_path)
-        })
-
         return True
 
     except Exception as e:
-        logger.error("FILE_OPS", "Copy failed", {
-            "source": str(src_path),
-            "destination": str(dst_path),
-            "error": str(e)
-        })
         raise FileOperationError(f"Failed to copy file: {e}")

@@ -1,5 +1,0 @@
-This is line one with keyword ERROR
-This is line two with normal text
-This is line three with keyword WARNING
-This is line four with normal text
-This is line five with keyword ERROR again

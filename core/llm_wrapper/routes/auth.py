@@ -16,7 +16,6 @@ def authenticate(self) -> None:
         return
 
     if not self.config.email or not self.config.password:
-        logger.warning("LLM_WRAPPER", "Missing credentials for authentication")
         return
 
     url = f"{self.config.base_url}/api/v1/auths/signin"
@@ -32,11 +31,9 @@ def authenticate(self) -> None:
         self.token = data.get("token")
 
         if self.token:
-            logger.info("LLM_WRAPPER", "Authentication successful")
             self.session.headers.update({"Authorization": f"Bearer {self.token}"})
         else:
             raise LLMWrapperError("Authentication failed: No token in response")
 
     except requests.RequestException as error:
-        logger.error("LLM_WRAPPER", "Authentication request failed", {"error": str(error)})
         raise LLMWrapperError(f"Authentication failed: {error}")

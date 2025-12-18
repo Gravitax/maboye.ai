@@ -33,7 +33,6 @@ class ContextManager:
             memory_repository: Repository to access conversation history
         """
         self._memory_repository = memory_repository
-        logger.info("CONTEXT_MANAGER", "ContextManager initialized")
 
     def _format_timestamp(self, timestamp_str: str) -> str:
         """
@@ -70,19 +69,12 @@ class ContextManager:
             List of conversation turns (dicts with role, content, timestamp, metadata)
         """
         if not self._memory_repository.exists(agent_id):
-            logger.debug("CONTEXT_MANAGER", f"No history found for agent {agent_id}")
             return []
 
         turns = self._memory_repository.get_conversation_history(
             agent_id=agent_id,
             max_turns=max_turns
         )
-
-        logger.debug("CONTEXT_MANAGER", f"Retrieved context for {agent_id}", {
-            "turns_count": len(turns),
-            "max_turns": max_turns
-        })
-
         return turns
 
     def build_messages(
@@ -120,13 +112,7 @@ class ContextManager:
 
         # Add conversation turns with timestamps
         for turn in turns:
-            timestamp = turn.get("timestamp", "")
-            time_str = self._format_timestamp(timestamp) if timestamp else ""
             content = turn.get("content", "")
-
-            # Prefix content with timestamp
-            if time_str:
-                content = f"[{time_str}] {content}"
 
             messages.append({
                 "role": turn.get("role", "user"),
@@ -229,58 +215,74 @@ class ContextManager:
         return """
 You analyze user queries and return ONLY one of two responses:
 
-1. For simple queries (greetings, single questions, one-step tasks):
-   "No TodoList needed for this simple query."
+1. For SIMPLE queries:
+   - Greetings/Social: "Hello", "How are you?"
+   - Informational/Memory: "Remember this...", "My name is...", "Keep in mind X"
+   - Single direct questions: "What is 2+2?"
+   - Identity changes: "Your name is now..."
+   RESPONSE: No TodoList needed for this simple query.
 
-2. For complex queries requiring multiple steps, return STRICT JSON:
+2. For COMPLEX queries (Requiring external tools or multi-step technical workflows):
+   - File manipulation, code analysis, system commands, or data processing.
+   RESPONSE: RAW JSON ONLY (NO markdown).
+
+JSON Schema:
 {
   "todo_list": [
     {
       "step_id": "step_1",
-      "description": "clear action description",
-      "depends_on": null
+      "description": "string",
+      "depends_on": null | "step_n"
     },
     {
       "step_id": "step_2",
-      "description": "next action",
-      "depends_on": "step_1"
+      "description": "string",
+      "depends_on": step_1"
     }
   ]
 }
 
 RULES:
-- MUST follow exact JSON format above
-- Each step_id: "step_N" where N is sequential number
-- depends_on: null OR "step_X" for dependencies
+- STRICT JSON output only. No markdown, no prose, no ```json.
+- NO conversational text before or after output.
+- If the request can be fulfilled by the LLM's internal memory or knowledge without using a tool: Return "No TodoList needed".
+- Do not plan "Store in memory" or "Note this" as steps.
+- Max 6 steps.
+- Use sequential IDs (step_1, step_2...).
 - Keep descriptions clear and actionable
-- Break complex tasks into 2-6 simpler and direct steps maximum
+
+Examples:
+User: "Hello how are you ?"
+Assistant: No TodoList needed for this simple query.
+
+User: "Analyse ce dossier"
+Assistant: {"todo_list": [{"step_id": "step_1", "description": "Lister le contenu du répertoire", "depends_on": null}, {"step_id": "step_2", "description": "Lire le contenu des fichiers identifiés", "depends_on": "step_1"}, {"step_id": "step_3", "description": "Synthétiser les informations", "depends_on": "step_2"}]}
 """
 
     def get_agent_system_prompt(self) -> str:
         return """
-You decompose simple step operations into executable commands. Return STRICT JSON:
-
+JSON Schema:
 {
   "steps": [
     {
-      "step_number": 1,
-      "description": "what this step does",
+      "step_number": integer,
+      "description": "string",
       "actions": [
         {
-          "tool_name": "read_file",
-          "arguments": {"file_path": "/path/to/file.js"},
-          "description": "read existing code"
+          "tool_name": "string",
+          "arguments": {},
+          "description": "string"
         }
       ]
     },
     {
-      "step_number": 2,
-      "description": "modify code",
+      "step_number": integer,
+      "description": "string",
       "actions": [
         {
-          "tool_name": "edit_file",
-          "arguments": {"file_path": "/path/to/file.js", "old_text": "foo", "new_text": "bar"},
-          "description": "update function name"
+          "tool_name": "string",
+          "arguments": {},
+          "description": "string"
         }
       ]
     }
@@ -288,8 +290,10 @@ You decompose simple step operations into executable commands. Return STRICT JSO
 }
 
 RULES:
-- MUST follow exact JSON format
-- step_number: sequential integers (1, 2, 3...)
-- tool_name: MUST be one of your authorized tools
-- arguments: dict with tool-specific params
+- STRICT JSON output only. No markdown, no prose, no ```json.
+- NO conversational text before or after output.
+- Each step must be logically sequenced.
+- Keep descriptions clear and actionable
+- Only use tools listed in 'Authorized Tools'.
+- 'arguments' must strictly match the tool signature.
 """

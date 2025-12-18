@@ -21,10 +21,6 @@ def generate_test_plan(request: TestPlanRequest) -> TestPlanResponse:
     """
     global _request_count_test
     _request_count_test += 1
-    logger.info("BACKEND_MOCK", "Test plan request received", {
-        "test_name": request.test_name,
-        "request_number": _request_count_test
-    })
 
     if request.test_name == "read_file":
         steps = [
@@ -331,5 +327,4 @@ def run_test(request: TestPlanRequest):
     try:
         return generate_test_plan(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Test plan error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

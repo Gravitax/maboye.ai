@@ -18,7 +18,6 @@ def _load_profiles_from_json():
     profiles_dir = os.path.dirname(__file__)
 
     if not os.path.exists(profiles_dir):
-        logger.warning("PROFILES", f"Profiles directory not found: {profiles_dir}")
         return profiles
 
     for filename in os.listdir(profiles_dir):
@@ -28,9 +27,8 @@ def _load_profiles_from_json():
                 with open(file_path, 'r') as f:
                     profile = json.load(f)
                     profiles.append(profile)
-                    logger.info("PROFILES", f"Loaded profile '{profile['name']}' from {filename}")
             except Exception as e:
-                logger.error("PROFILES", f"Failed to load profile from {filename}", {"error": str(e)})
+                pass
     return profiles
 
 ALL_PROFILES = _load_profiles_from_json()

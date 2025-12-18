@@ -17,23 +17,6 @@ class ExecutionManager:
 
     Each agent has its own memory and can iterate multiple times
     to accomplish its assigned step.
-
-    OPTION B - Agent Routing (commented in code):
-    -----------------------------------------------
-    To enable specialized agent routing:
-    1. Uncomment AgentFactory initialization in orchestrator._setup_components()
-    2. Uncomment agent_factory/agent_repository params in __init__
-    3. Uncomment _route_to_agent() method
-    4. Uncomment routing logic in _execute_step()
-
-    This will route tasks to specialized agents:
-        - "git commit" → GitAgent (git_agent.json)
-        - "list files" → BashAgent (bash_agent.json)
-        - "hello" → DefaultAgent (default_agent.json)
-        - etc.
-
-    Benefits: Agent caching, specialized tools, better performance
-    Current: Uses MockAgent for all tasks (simple, for testing)
     """
 
     def __init__(
@@ -43,8 +26,8 @@ class ExecutionManager:
         tool_registry,
         memory_manager,
         context_manager,
-        # agent_factory=None,  # Option B: pass AgentFactory for routing
-        # agent_repository=None  # Option B: pass AgentRepository for loading profiles
+        agent_factory=None,
+        agent_repository=None
     ):
         """
         Initialize execution manager.
@@ -62,13 +45,11 @@ class ExecutionManager:
         self._tool_scheduler = tool_scheduler
         self._tool_registry = tool_registry
         self._memory_manager = memory_manager
-        self.context_manager = context_manager
+        self._context_manager = context_manager
 
-        # Option B: AgentFactory for routing to specialized agents
-        # self._agent_factory = agent_factory
-        # self._agent_repository = agent_repository
-
-        logger.info("EXECUTION_MANAGER", "ExecutionManager initialized")
+        # AgentFactory for routing to specialized agents
+        self._agent_factory = agent_factory
+        self._agent_repository = agent_repository
     
     def _execute_direct(self, user_input: str, context: str = "") -> AgentOutput:
         """
@@ -80,26 +61,18 @@ class ExecutionManager:
         Returns:
             AgentOutput from direct execution
         """
-        #todo remplacer mockagent par un agent default
-        from tests.test_utils.mock_agent import MockAgent
-        logger.info("EXECUTION_MANAGER", "Executing directly without todolist")
 
-        mock_agent = MockAgent(
-            self._llm,
-            self._tool_scheduler,
-            self._tool_registry,
-            self._memory_manager
-        )
-
+        registered_agent = self._agent_repository.find_by_name("DefaultAgent")
+        agent = self._agent_factory.create_agent(registered_agent)
         # todo
         user_prompt=user_input
         system_prompt = "Answer base on history and user_query"
 
-        result = mock_agent.run(
+        result = agent.run(
             user_prompt=user_prompt,
             system_prompt=system_prompt
         )
-        result.metadata={"called_agents":[{"agent_name": mock_agent._identity.agent_name}]}
+        result.metadata={"called_agents":[{"agent_name": agent._identity.agent_name}]}
         return result
 
     def execute(
@@ -124,60 +97,36 @@ class ExecutionManager:
         Returns:
             Tuple of AgentOutput with final result and list of called agents
         """
-        from tests.test_utils.mock_agent import MockAgent
-
-        logger.info("EXECUTION_MANAGER", "Starting autonomous execution")
-
-        # Create agent for todolist initialization
-        agent = MockAgent(
-            self._llm,
-            self._tool_scheduler,
-            self._tool_registry,
-            self._memory_manager
-        )
+        registered_agent = self._agent_repository.find_by_name("TodoListAgent")
+        agent = self._agent_factory.create_agent(registered_agent)
 
         # Create state manager
-        state_manager = StateManager(context_manager=self.context_manager, agent=agent)
+        state_manager = StateManager(context_manager=self._context_manager, agent=agent)
 
         # Initialize todolist
         success = state_manager.init_todolist(user_input, context)
 
-        if not success:
-            # Fallback to direct execution
-            return self._execute_direct(user_input, context)
+        logger.info("EXECUTION_MANAGER", state_manager.display_todolist())
 
-        logger.info("EXECUTION_MANAGER", "Todolist initialized", {
-            "initial_state": state_manager.get_state_summary()
-        })
+        if not success:
+            return self._execute_direct(user_input, context)
 
         iteration = 0
         called_agents = []
-        # max_iterations should be todolist steps number
         while not state_manager.is_complete() and iteration < max_iterations:
             iteration += 1
 
-            # Get next pending step
             next_step = state_manager.get_next_step()
 
             if next_step is None:
-                logger.warning("EXECUTION_MANAGER", "No pending steps but todolist not complete")
                 break
 
             step_id = next_step.get("step_id", "unknown")
 
-            logger.info("EXECUTION_MANAGER", f"Executing step: {step_id}", {
-                "description": next_step.get("description", "")[:100]
-            })
-
-            # Execute step with specialized agent
             result, called_agent = self._execute_step(step=next_step)
             called_agents.append(called_agent)
 
-            # Check if step failed
             if not result.success:
-                logger.error("EXECUTION_MANAGER", f"Step {step_id} failed", {
-                    "error": result.error
-                })
                 return AgentOutput(
                     response=f"Execution failed at step {step_id}: {result.error}",
                     success=False,
@@ -186,17 +135,10 @@ class ExecutionManager:
                     metadata={"called_agents":called_agents}
                 )
 
-            # Update todolist based on result
             state_manager.update_from_result(step_id, result)
+            logger.info("STEP_COMPLETE", f"{step_id}")
 
-            logger.info("EXECUTION_MANAGER", f"Step {step_id} completed successfully")
-
-        # Check why loop ended
         if iteration >= max_iterations:
-            logger.error("EXECUTION_MANAGER", "Max iterations reached", {
-                "max_iterations": max_iterations,
-                "state": state_manager.get_state_summary()
-            })
             return AgentOutput(
                 response=f"Max iterations ({max_iterations}) reached without completion",
                 success=False,
@@ -206,7 +148,6 @@ class ExecutionManager:
             )
 
         if not state_manager.is_complete():
-            logger.warning("EXECUTION_MANAGER", "Workflow ended but not complete")
             return AgentOutput(
                 response="Workflow ended without completion",
                 success=False,
@@ -215,15 +156,14 @@ class ExecutionManager:
                 metadata={"called_agents": called_agents}
             )
 
-        # Generate final report
-        logger.info("EXECUTION_MANAGER", "Workflow completed successfully", {
-            "total_iterations": iteration,
-            "completed_steps": len(state_manager.get_completed_steps())
-        })
+        return AgentOutput(
+            response="Workflow ended with success",
+            success=True,
+            agent_id="autonomous_workflow",
+            metadata={"called_agents": called_agents}
+        )
 
-        return self._generate_final_report(state_manager, called_agents)
-
-    # ========== OPTION B: Agent Routing (commented for future use) ==========
+    # ========== Agent Routing ==========
     # def _route_to_agent(self, description: str):
     #     """
     #     Route step to appropriate specialized agent based on description.
@@ -281,99 +221,21 @@ class ExecutionManager:
         Returns:
             AgentOutput from agent execution
         """
-        from tests.test_utils.mock_agent import MockAgent
-
         step_id = step.get("step_id", "unknown")
         description = step.get("description", "")
+        logger.info("STEP_START", f"{step_id}: {description}")
 
-        logger.info("EXECUTION_MANAGER", f"Creating agent for step {step_id}")
+        registered_agent = self._agent_repository.find_by_name("ExecAgent")
+        agent = self._agent_factory.create_agent(registered_agent)
 
-        # ===== OPTION B: Use AgentFactory with routing (commented) =====
-        # # 1. Route to appropriate agent based on description
-        # registered_agent = self._route_to_agent(description)
-        #
-        # # 2. Create/get agent instance from factory (with caching)
-        # agent = self._agent_factory.create_agent(registered_agent)
-        #
-        # logger.info("EXECUTION_MANAGER", f"Routed to agent: {registered_agent.get_agent_name()}")
-        # ===============================================================
+        system_prompt = self._context_manager.get_agent_system_prompt()
+        system_prompt += "\n\n" + self._context_manager.get_available_tools_prompt(agent)
 
-        # Current: Using MockAgent directly (simple, no routing)
-        from tests.test_utils.mock_agent import MockAgent
-        agent = MockAgent(
-            self._llm,
-            self._tool_scheduler,
-            self._tool_registry,
-            self._memory_manager
-        )
-
-        user_prompt = description
-        system_prompt = self.context_manager.get_agent_system_prompt()
-        system_prompt += "\n\n" + self.context_manager.get_available_tools_prompt(agent)
-        # Execute agent with iterative mode using step description
         result = agent.run(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            mode="iterative"
+            user_prompt=description,
+            system_prompt=system_prompt
         )
         return result, {"agent_name": agent._identity.agent_name}
-
-    def _generate_final_report(self, state_manager: StateManager, called_agents = []) -> AgentOutput:
-        """
-        Generate final aggregated report from all findings.
-
-        Args:
-            state_manager: StateManager with completed workflow
-
-        Returns:
-            AgentOutput with aggregated report
-        """
-        findings = state_manager.get_findings()
-        completed_steps = state_manager.get_completed_steps()
-        iteration_count = state_manager.get_iteration_count()
-
-        report_parts = [
-            "# Autonomous Workflow Completed",
-            "",
-            f"Total Steps: {len(completed_steps)}",
-            f"Iterations: {iteration_count}",
-            "",
-            "## Step Results",
-            ""
-        ]
-
-        # Add results from each completed step
-        for step_id in completed_steps:
-            if step_id in findings:
-                finding = findings[step_id]
-                preview = finding[:500]
-                if len(finding) > 500:
-                    preview += "\n... (truncated)"
-
-                report_parts.extend([
-                    f"### {step_id}",
-                    preview,
-                    ""
-                ])
-
-        report_parts.extend([
-            "---",
-            "Workflow executed successfully."
-        ])
-
-        report_text = "\n".join(report_parts)
-
-        logger.info("EXECUTION_MANAGER", "Final report generated", {
-            "report_length": len(report_text),
-            "steps_included": len(completed_steps)
-        })
-
-        return AgentOutput(
-            response=report_text,
-            success=True,
-            agent_id="autonomous_workflow",
-            metadata={"called_agents": called_agents}
-        )
 
     def get_stats(self) -> Dict[str, Any]:
         """

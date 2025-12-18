@@ -1,15 +1,31 @@
 {
   "name": "ExecAgent",
-  "description": "An agent that execute simple task based on his authorized_tools",
-  "authorized_tools": ["read_file", "write_file"],
-  "system_prompt": "You execute simple task based on your authorized_tools",
+  "description": "Technical Execution Agent.",
+  "authorized_tools": [
+    "bash",
+    "code_search",
+    "edit_file",
+    "file_info",
+    "find_file",
+    "get_file_structure",
+    "git_add",
+    "git_commit",
+    "git_diff",
+    "git_log",
+    "git_status",
+    "grep",
+    "list_files",
+    "read_file",
+    "write_file"
+  ],
+  "system_prompt": "Translate task descriptions into precise tool calls using a structured JSON schema.",
   "max_reasoning_turns": 2,
   "max_memory_turns": 2,
   "specialization_tags": [
     "execution"
   ],
   "llm_config": {
-    "temperature": 0.1,
+    "temperature": 0,
     "max_tokens": 1000,
     "timeout": 30
   }

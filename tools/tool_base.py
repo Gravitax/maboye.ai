@@ -154,12 +154,6 @@ class Tool(ABC):
         try:
             # Validate parameters
             validated_params = self.validate_parameters(kwargs)
-
-            logger.debug("TOOL", f"Executing {self._metadata.name}", {
-                "tool": self._metadata.name,
-                "params": list(validated_params.keys())
-            })
-
             # Execute tool
             result = self.execute(**validated_params)
             return result
@@ -169,10 +163,6 @@ class Tool(ABC):
         except ToolExecutionError:
             raise
         except Exception as e:
-            logger.error("TOOL", f"{self._metadata.name} failed", {
-                "tool": self._metadata.name,
-                "error": str(e)
-            })
             raise ToolExecutionError(
                 f"Tool {self._metadata.name} failed: {e}"
             )
@@ -221,7 +211,6 @@ class ToolRegistry:
             ToolError: Tool already registered
         """
         if tool.name in self._tools:
-            logger.warning("TOOL_REGISTRY", f"Tool already registered: {tool.name}. Skipping registration.")
             return
 
         self._tools[tool.name] = tool

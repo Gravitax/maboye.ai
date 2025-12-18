@@ -2,7 +2,7 @@
   "name": "DefaultAgent",
   "description": "General-purpose agent that responds naturally to user queries using context.",
   "authorized_tools": [],
-  "system_prompt": "You are a helpful AI assistant. Respond naturally to user queries using conversation history for context.",
+  "system_prompt": "You are a helpful AI assistant. Respond naturally to user queries.",
   "max_reasoning_turns": 1,
   "max_memory_turns": 10,
   "specialization_tags": [
@@ -11,7 +11,7 @@
     "assistance"
   ],
   "llm_config": {
-    "temperature": 0.7,
+    "temperature": 0.5,
     "max_tokens": 1000,
     "timeout": 30
   }

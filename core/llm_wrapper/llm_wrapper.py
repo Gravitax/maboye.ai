@@ -11,7 +11,6 @@ import requests
 from ..logger import logger
 from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse, TestPlanResponse
 from .config import LLMWrapperConfig
-from .errors import LLMWrapperError
 from .client import RequestBuilder, RequestSender, ResponseHandler
 from .routes import auth, chat, embedding, models, test, test_iterative
 
@@ -58,25 +57,18 @@ class LLMWrapper:
             models_response = self.list_models()
 
             if not models_response.data:
-                logger.warning("LLM_WRAPPER", "No models available from API")
                 return
 
             available_models = [model.id for model in models_response.data]
             configured_model = self.config.model
 
             if configured_model in available_models:
-                logger.info("LLM_WRAPPER", f"Using configured model: {configured_model}")
+                pass
             else:
                 self.config.model = available_models[0]
-                logger.warning(
-                    "LLM_WRAPPER",
-                    f"Configured model '{configured_model}' not found. Using '{self.config.model}' instead.",
-                    {"available_models": available_models}
-                )
 
         except Exception as error:
-            logger.error("LLM_WRAPPER", "Model initialization failed", {"error": str(error)})
-            logger.warning("LLM_WRAPPER", f"Continuing with configured model: {self.config.model}")
+            pass
 
     def chat(
         self,
@@ -165,4 +157,4 @@ class LLMWrapper:
         """
         Close LLM wrapper and cleanup resources.
         """
-        logger.debug("LLM_WRAPPER", "Closing wrapper")
+        pass

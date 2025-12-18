@@ -1,17 +1,33 @@
 {
   "name": "TodoListAgent",
-  "description": "Analyzes user queries and make them a step by step list of simpler and direct operations.",
-  "authorized_tools": [],
-  "system_prompt": "You analyze user queries and make them a step by step list of simpler and direct operations.",
+  "description": "Specialized Task Decomposer.",
+  "authorized_tools": [
+    "bash",
+    "code_search",
+    "edit_file",
+    "file_info",
+    "find_file",
+    "get_file_structure",
+    "git_add",
+    "git_commit",
+    "git_diff",
+    "git_log",
+    "git_status",
+    "grep",
+    "list_files",
+    "read_file",
+    "write_file"
+  ],
+  "system_prompt": "Determine if a query requires multi-step planning and return a structured roadmap or a bypass signal.",
   "max_reasoning_turns": 1,
-  "max_memory_turns": 4,
+  "max_memory_turns": 0,
   "specialization_tags": [
     "planning",
     "todolist",
     "orchestration"
   ],
   "llm_config": {
-    "temperature": 0.1,
+    "temperature": 0,
     "max_tokens": 800,
     "timeout": 30
   }

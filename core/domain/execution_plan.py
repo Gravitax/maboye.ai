@@ -30,14 +30,12 @@ class ExecutionPlan:
 
     def is_dangerous(self, tool_registry) -> bool:
         """Check if any action is marked dangerous"""
-        logger.info("EXECUTION_PLAN", "Checking for dangerous tools", {
-            "steps_count": len(self.steps),
-            "total_actions": sum(len(step.actions) for step in self.steps)
-        })
+        logger.info("EXECUTION_PLAN", "Checking for dangerous tools")
         for step in self.steps:
             for action in step.actions:
                 tool = tool_registry.get_tool(action.tool_name)
                 if tool and tool.is_dangerous:
                     logger.warning("EXECUTION_PLAN", f"Dangerous tool found: {action.tool_name}")
                     return True
+        logger.info("EXECUTION_PLAN", "No dangerous tools found")
         return False

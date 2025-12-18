@@ -69,7 +69,6 @@ class PlanExecutionService:
         Returns:
             PlanExecutionResult with all step results
         """
-        logger.info("PLAN_EXECUTION_SERVICE", "------------------------------ start")
         if plan.is_dangerous(self._tool_registry) and not confirm_dangerous:
             raise PlanExecutionError(
                 "Plan contains dangerous actions and requires confirmation"
@@ -80,15 +79,12 @@ class PlanExecutionService:
         for step in plan.steps:
             if step.depends_on is not None:
                 if not self._dependency_satisfied(step.depends_on, step_results):
-                    raise PlanExecutionError(
-                        f"------------------------------ Dependency {step.depends_on} not satisfied for step {step.step_number}"
-                    )
+                    raise PlanExecutionError(f"Dependency {step.depends_on} not satisfied for step {step.step_number}")
 
             step_result = self._execute_step(step)
             step_results.append(step_result)
 
             if not step_result.success:
-                logger.error("PLAN_EXECUTION_SERVICE", f"------------------------------ Step {step.step_number} failed: {step_result.error}")
                 return PlanExecutionResult(
                     plan_id=plan.plan_id,
                     completed_steps=step_results,
@@ -96,7 +92,6 @@ class PlanExecutionService:
                     error=f"Step {step.step_number} failed: {step_result.error}"
                 )
 
-        logger.info("PLAN_EXECUTION_SERVICE", "------------------------------ Plan executed successfully")
         return PlanExecutionResult(
             plan_id=plan.plan_id,
             completed_steps=step_results,
@@ -106,7 +101,6 @@ class PlanExecutionService:
     def _execute_step(self, step: ExecutionStep) -> StepExecutionResult:
         """Execute single step with all its actions"""
         action_results = []
-        logger.info("PLAN_EXECUTION_SERVICE", f"---------- Executing step {step.step_number}: {step.description}")
 
         tool_calls_for_scheduler = []
         for action in step.actions:
@@ -122,14 +116,12 @@ class PlanExecutionService:
         for i, action in enumerate(step.actions):
             tool_result = tool_results[i]
             if tool_result["success"]:
-                logger.info("PLAN_EXECUTION_SERVICE", f"Action {action.tool_name} completed successfully", {"result_preview": str(tool_result['result'])[:50]})
                 action_results.append(ActionResult(
                     tool_name=action.tool_name,
                     success=True,
                     result=tool_result['result']
                 ))
             else:
-                logger.error("PLAN_EXECUTION_SERVICE", f"Action {action.tool_name} failed: {tool_result['result']}", {"arguments": action.arguments})
                 action_results.append(ActionResult(
                     tool_name=action.tool_name,
                     success=False,

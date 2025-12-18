@@ -32,7 +32,6 @@ def health_endpoint():
     try:
         return get_health_status()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Health error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 @router.get("/", tags=["Health"])

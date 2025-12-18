@@ -65,8 +65,6 @@ def list_embedding_models() -> EmbedV1ModelsResponse:
     Returns:
         Embedding models response
     """
-    logger.info("BACKEND_MOCK", "Embedding models list requested")
-
     return EmbedV1ModelsResponse(
         object="list",
         data=[
@@ -81,7 +79,6 @@ def embed_v1_list_models():
     try:
         return list_embedding_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Embed models error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -89,8 +86,6 @@ def embed_v1_list_models():
 def embed_v1_embeddings(request: EmbeddingRequest):
     """Generate embeddings via embed service."""
     try:
-        logger.info("BACKEND_MOCK", "Received embedding request", {"request": request.model_dump()})
         return generate_embeddings(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Embed error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))

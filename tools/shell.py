@@ -90,16 +90,7 @@ def execute_command(
     # Prepare working directory
     work_dir = Path(cwd).resolve() if cwd else Path.cwd()
     if not work_dir.exists():
-        logger.error("SHELL", "Working directory not found", {
-            "path": str(work_dir)
-        })
         raise ShellError(f"Working directory not found: {cwd}")
-
-    logger.info("SHELL", "Executing command", {
-        "command": command,
-        "cwd": str(work_dir),
-        "timeout": timeout
-    })
 
     try:
         # Execute command
@@ -122,12 +113,6 @@ def execute_command(
             process.wait()
             execution_time = time.time() - start_time
 
-            logger.error("SHELL", "Command timeout", {
-                "command": command,
-                "timeout": timeout,
-                "execution_time": execution_time
-            })
-
             raise CommandTimeoutError(
                 f"Command exceeded timeout of {timeout}s: {command}"
             )
@@ -145,13 +130,6 @@ def execute_command(
 
         if result.success:
             pass
-        else:
-            logger.warning("SHELL", "Command failed", {
-                "command": command,
-                "returncode": result.returncode,
-                "stderr": result.stderr[:200],
-                "execution_time": execution_time
-            })
 
         return result
 
@@ -160,19 +138,10 @@ def execute_command(
         raise
 
     except FileNotFoundError as e:
-        logger.error("SHELL", "Command not found", {
-            "command": command,
-            "error": str(e)
-        })
         raise CommandExecutionError(f"Command not found: {command}")
 
     except Exception as e:
         execution_time = time.time() - start_time
-        logger.error("SHELL", "Command execution failed", {
-            "command": command,
-            "error": str(e),
-            "execution_time": execution_time
-        })
         raise CommandExecutionError(f"Failed to execute command: {e}")
 
 
@@ -247,10 +216,6 @@ def run_commands(
         results.append(result)
 
         if stop_on_error and not result.success:
-            logger.warning("SHELL", "Stopping command sequence on error", {
-                "command": command,
-                "returncode": result.returncode
-            })
             break
 
     return results
@@ -279,9 +244,6 @@ class BackgroundProcess:
             True if started successfully
         """
         if self.process is not None:
-            logger.warning("SHELL", "Process already running", {
-                "command": self.command
-            })
             return False
 
         # Prepare environment
@@ -303,19 +265,9 @@ class BackgroundProcess:
                 text=True
             )
             self.start_time = time.time()
-
-            logger.info("SHELL", "Background process started", {
-                "command": self.command,
-                "pid": self.process.pid
-            })
-
             return True
 
         except Exception as e:
-            logger.error("SHELL", "Failed to start background process", {
-                "command": self.command,
-                "error": str(e)
-            })
             return False
 
     def is_running(self) -> bool:
@@ -373,12 +325,6 @@ class BackgroundProcess:
                 execution_time=execution_time
             )
 
-            logger.info("SHELL", "Background process completed", {
-                "command": self.command,
-                "returncode": result.returncode,
-                "execution_time": execution_time
-            })
-
             return result
 
         except subprocess.TimeoutExpired:
@@ -398,19 +344,9 @@ class BackgroundProcess:
             self.process.kill()
             self.process.wait(timeout=5)
 
-            logger.info("SHELL", "Background process killed", {
-                "command": self.command,
-                "pid": self.process.pid
-            })
-
             return True
 
         except Exception as e:
-            logger.error("SHELL", "Failed to kill process", {
-                "command": self.command,
-                "pid": self.process.pid,
-                "error": str(e)
-            })
             return False
 
     def terminate(self) -> bool:
@@ -426,21 +362,10 @@ class BackgroundProcess:
         try:
             self.process.terminate()
             self.process.wait(timeout=5)
-
-            logger.info("SHELL", "Background process terminated", {
-                "command": self.command,
-                "pid": self.process.pid
-            })
-
             return True
 
         except subprocess.TimeoutExpired:
             # Force kill if graceful termination fails
             return self.kill()
         except Exception as e:
-            logger.error("SHELL", "Failed to terminate process", {
-                "command": self.command,
-                "pid": self.process.pid,
-                "error": str(e)
-            })
             return False

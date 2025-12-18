@@ -65,12 +65,6 @@ def generate_ollama_embeddings(request: OllamaEmbedRequest) -> OllamaEmbedRespon
     global _request_count_ollama
     _request_count_ollama += 1
 
-    logger.info("BACKEND_MOCK", "Ollama embed request received", {
-        "model": request.model,
-        "input_count": len(request.input),
-        "request_number": _request_count_ollama
-    })
-
     embeddings = []
     for _ in request.input:
         mock_embedding = _generate_mock_embedding()
@@ -87,8 +81,6 @@ def list_ollama_models() -> OllamaTagsResponse:
     Returns:
         Ollama tags response
     """
-    logger.info("BACKEND_MOCK", "Ollama tags list requested")
-
     return OllamaTagsResponse(models=[])
 
 
@@ -98,7 +90,6 @@ def ollama_list_tags():
     try:
         return list_ollama_models()
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Ollama tags error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -108,7 +99,6 @@ def ollama_generate(request: OllamaGenerateRequest):
     try:
         return generate_ollama_completion(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Ollama generate error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
 
 
@@ -118,5 +108,4 @@ def ollama_embed(request: OllamaEmbedRequest):
     try:
         return generate_ollama_embeddings(request)
     except Exception as error:
-        logger.error("BACKEND_MOCK", "Ollama embed error", {"error": str(error)})
         raise HTTPException(status_code=500, detail=str(error))
