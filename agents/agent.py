@@ -119,18 +119,23 @@ class Agent:
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="assistant",
-                content=f"\nexecuted command: {result.cmd}\nresult: {result.response}\nlog: {result.log}"
+                content=f"executed command: {result.cmd}\noutput: {result.response}\nsuccess: {result.success}"
             )
 
-            # Check command status
-            if result.cmd == "task_complete":
+            if result.cmd == "task_completed":
                 return result
             elif not result.success:
-                # Continue with simple prompt - context is already in memory
-                user_prompt = "The previous command failed. Please try a different approach."
+            # Continue with simple prompt - context is already in memory
+                user_prompt = (
+                    f"The command '{result.cmd}' failed.\n"
+                    f"Error logs:\n{result.log}\n"
+                    "Analyze the failure and execute a corrected approach."
+                )
             else:
-                # Continue with simple prompt - context is already in memory
-                user_prompt = "What is the next step?"
+                user_prompt = (
+                    f"The command '{result.cmd}' succeeded.\n"
+                    "Determine the next logical step or use 'task_completed' if finished."
+                )
         # Max iterations reached
         result.error = "Max iterations reached"
         return result
