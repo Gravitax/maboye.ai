@@ -288,7 +288,7 @@ def git_checkout(
     branch: str,
     path: str = ".",
     create: bool = False
-) -> bool:
+) -> str:
     """
     Checkout branch
 
@@ -298,22 +298,18 @@ def git_checkout(
         create: Create new branch
 
     Returns:
-        True if checked out
-
-    Raises:
-        GitNotRepositoryError: Not a Git repository
-        GitOperationError: Checkout failed
+        Output message or error string
     """
     if not is_git_repository(path):
-        raise GitNotRepositoryError(f"Not a Git repository: {path}")
+        return f"Error: Not a Git repository: {path}"
 
     try:
         cmd = f"git checkout {'-b ' if create else ''}'{branch}'"
         result = run_command(cmd, cwd=path, check=True)
-        return True
+        return result.stdout or result.stderr or f"Switched to branch '{branch}'"
 
     except CommandExecutionError as e:
-        raise GitOperationError(f"Failed to checkout branch: {e}")
+        return f"Git Error: {e}"
 
 
 def git_current_branch(path: str = ".") -> str:

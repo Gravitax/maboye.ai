@@ -169,62 +169,72 @@ class ContextManager:
     
     def get_available_tools_prompt(self, agent) -> str:
         """
-        Generate prompt describing available tools for the agent.
-
-        Args:
-            agent: Agent instance with tool registry and capabilities
-
-        Returns:
-            Formatted string describing available tools
+        Génère une description riche des outils incluant types et descriptions des arguments.
         """
         authorized_tools = agent._capabilities.authorized_tools
-
         if not authorized_tools:
             return "No tools available."
 
         tool_registry = agent._tool_registry
-        lines = ["\nAVAILABLE TOOLS:"]
+        lines = ["\n## AVAILABLE TOOLS"]
 
         for tool_name in authorized_tools:
             tool_info = tool_registry.get_tool_info(tool_name)
             if tool_info:
-                # Format: - tool_name: description
-                lines.append(f"- {tool_info['name']}: {tool_info['description']}")
+                # Titre et description de l'outil
+                lines.append(f"\n### Tool: `{tool_info['name']}`")
+                lines.append(f"Description: {tool_info['description']}")
 
-                # Add parameters info
+                # Détails des paramètres
                 if tool_info.get('parameters'):
-                    params = []
+                    lines.append("Arguments:")
                     for param in tool_info['parameters']:
-                        param_name = param['name']
-                        param_required = " (required)" if param.get('required') else ""
-                        params.append(f"{param_name}{param_required}")
-                    if params:
-                        lines.append(f"  Parameters: {', '.join(params)}")
-        lines.append(f"- task_completed: command to use when the task do not require anymore operation to be completed")
+                        p_name = param['name']
+                        # Gestion propre du type (si c'est une classe Python ou une string)
+                        raw_type = param.get('type', 'string')
+                        if isinstance(raw_type, type):
+                            p_type = raw_type.__name__ # Transforme <class 'str'> en 'str'
+                        else:
+                            p_type = str(raw_type)
+
+                        p_req = "required" if param.get('required') else "optional"
+                        p_desc = param.get('description', '')
+                        # Ajout de la valeur par défaut si elle existe (très utile pour l'agent)
+                        default_info = ""
+                        if 'default' in param and not param.get('required'):
+                            default_info = f" (default: {param['default']})"
+
+                        lines.append(f"  - `{p_name}` ({p_type}, {p_req}){default_info}: {p_desc}")    
         return "\n".join(lines)
     
     def get_taskslist_system_prompt(self) -> str:
         return """
 You are a Senior Software Architect.
-Your role is to plan code modifications and system actions requested by the user.
+Your role is to break down the user's request into a logical sequence of actionable steps (tasks) for a Developer Agent.
 
 OUTPUT RULES:
 1. Respond ONLY in strict JSON format.
 2. NO conversational text before or after the JSON.
+3. Ensure all strings are properly escaped for JSON.
 
 JSON SCHEMA:
 {
-  "analyse": "String containing technical explanation or context.",
+  "analyse": "Brief technical analysis of the request and context.",
   "tasks": [
-    "String description of task 1"
+    "Step 1: specific objective",
+    "Step 2: specific objective"
   ]
 }
 
-INSTRUCTIONS:
-- "analyse": Assess technical implications.
-- "tasks": Provide an ordered list of clear instructions for the developer agent.
-- IMPORTANT: Generate tasks for ANY request requiring system interaction (listing files, reading code, debugging, or running commands).
-- Return an EMPTY list `[]` ONLY for pure conversation (e.g., "Hello", "How are you") unrelated to the project.
+TASK GUIDELINES:
+- ATOMICITY: Each task should be a clear, achievable objective (e.g., "Read src/main.py to understand the logic" instead of "Understand the code").
+- SEQUENCE: Order tasks logically (Investigation -> Modification -> Verification).
+- SCOPE: Do NOT specify exact tool calls (e.g., do not say "use read_file tool"), just state the GOAL. The Developer Agent will choose the tools.
+- CONTEXT: If the user refers to specific files, mention them explicitly in the tasks.
+
+SPECIAL CASES:
+- If the request is a simple greeting or pure conversation unrelated to code/system, return an EMPTY list `[]` for "tasks".
+- If the request requires knowledge retrieval (e.g., "How does auth work?"), create a task to "Inspect code to explain authentication mechanism".
 """
 
     def get_execution_system_prompt(self) -> str:
@@ -236,13 +246,13 @@ EXECUTION RULES:
 1. Analyze the current context and previous tool outputs.
 2. STRICT SCOPE: Do NOT invent new steps. If asked to "list files", ONLY list files. Do NOT read them unless explicitly asked.
 3. STOPPING CONDITION: If the previous tool output contains the requested information or completes the action, you MUST use the "task_completed" tool immediately.
-4. Respond ONLY with a JSON object.
+4. FORMAT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (like ```json). Do NOT add conversational text.
 
 JSON SCHEMA:
 {
   "tool_name": "exact_name_of_the_tool",
   "arguments": {
-    "arg_name": "value"
+    "arg_name": "value" // Ensure value matches the expected type (int, string, bool)
   }
 }
 """

@@ -3,365 +3,252 @@ Agent Execution Coordinator
 
 Manages single-command execution workflow for agents.
 Handles LLM querying, command parsing, and tool execution.
+Includes retry logic for JSON syntax errors and robust security checks.
 """
 
 import json
-from typing import Optional, Dict, Any, TYPE_CHECKING
+import re
+from typing import Optional, Dict, Any, Callable, List, TYPE_CHECKING
 from core.logger import logger
 from core.tool_scheduler import ToolScheduler
 from core.services.context_manager import ContextManager
 from agents.types import AgentOutput, ToolCall
+from tools.tool_ids import ToolId
 
 if TYPE_CHECKING:
     from agents.agent import Agent
 
-
-# Dangerous commands that require user confirmation
-DANGEROUS_COMMANDS = {
-    "write_file": "Write/overwrite file content",
-    "edit_file": "Modify existing file content"
-}
-
-# Very dangerous bash commands patterns
-VERY_DANGEROUS_BASH_PATTERNS = [
-    "rm ",
-    "rm\t",
-    "del ",
-    "rmdir ",
-    "mv ",
-    "rename "
-]
-
+# Regex pour détecter les commandes destructrices dans les arguments bash
+DANGEROUS_BASH_REGEX = re.compile(r'(^|[;\s|&])(rm|del|rmdir|mv|rename)(\s+|$)', re.IGNORECASE)
 
 class TaskExecution:
     """
-    Coordinates single-command execution workflow for agents.
-
-    Responsibilities:
-    - Query LLM for next command
-    - Parse LLM response to extract tool call
-    - Execute single tool via ToolScheduler
-    - Return execution result
+    Coordonne l'exécution d'une commande unique.
+    Intègre une logique de 'Retry' pour les erreurs de syntaxe JSON et une abstraction des confirmations utilisateur.
     """
 
     def __init__(
         self,
         llm,
         tool_scheduler: ToolScheduler,
-        context_manager: ContextManager
+        context_manager: ContextManager,
+        interaction_handler: Optional[Callable[[str, Dict], bool]] = None
     ):
         """
-        Initialize task execution coordinator.
-
         Args:
-            llm: LLM wrapper for querying
-            tool_scheduler: Scheduler for executing tools
-            context_manager: Manager for conversation history
+            interaction_handler: Callback (msg, args) -> bool pour confirmer les actions dangereuses.
+                                 Si None, utilise input() console par défaut.
         """
         self._llm = llm
         self._tool_scheduler = tool_scheduler
         self._context_manager = context_manager
+        self._interaction_handler = interaction_handler or self._default_console_confirmation
 
     def __call__(
         self,
         agent: "Agent",
-        user_prompt: str,
-        system_prompt: str
+        task: str,
+        system_prompt: str,
+        max_retries: int = 1
     ) -> AgentOutput:
         """
-        Execute single command workflow.
-
-        Workflow:
-        1. Build messages from conversation history
-        2. Query LLM for next command
-        3. Parse JSON response to extract tool_name and arguments
-        4. Execute tool via ToolScheduler
-        5. Return result with cmd field set
-
-        Args:
-            agent: Agent instance with identity and capabilities
-            user_prompt: User query or context
-            system_prompt: System prompt with instructions
-
-        Returns:
-            AgentOutput with execution result and cmd field
+        Exécute le workflow avec tentative de récupération en cas d'erreur de format.
         """
-        # Extract agent properties
         agent_id = agent.get_identity().agent_id
         capabilities = agent.get_capabilities()
 
-        # Build messages with conversation history
+        # Construction du contexte initial
         messages = self._context_manager.build_messages(
             agent_id=agent_id,
             system_prompt=system_prompt,
             max_turns=capabilities.max_memory_turns
         )
 
-        logger.info("AGENT", "task", user_prompt)
-        logger.info("AGENT", "input", messages)
+        if task:
+            messages.append({"role": "user", "content": task})
 
-        # Add current user prompt if provided
-        if user_prompt:
-            messages.append({
-                "role": "user",
-                "content": user_prompt
-            })
+        # Boucle de tentative (Retry Loop) pour corriger les erreurs de syntaxe JSON
+        current_retries = 0
+        
+        while current_retries <= max_retries:
+            logger.info("AGENT", "task_attempt", f"Try {current_retries + 1}/{max_retries + 1}")
+            logger.info("AGENT", "input", messages)
 
-        llm_response = self._llm.chat(
-            messages,
-            verbose=True,
-            temperature=capabilities.llm_temperature,
-            max_tokens=capabilities.llm_max_tokens,
-            response_format=capabilities.llm_response_format
-        )
-
-        message = llm_response.choices[0].message if llm_response.choices else None
-        if not message or not message.content:
-            return AgentOutput(
-                response="Error: No response from LLM",
-                success=False,
-                error="no_llm_response",
-                cmd="llm_error",
-                log="LLM returned no response"
+            # 1. Appel LLM
+            llm_response = self._llm.chat(
+                messages,
+                verbose=True,
+                temperature=capabilities.llm_temperature,
+                max_tokens=capabilities.llm_max_tokens,
+                response_format=capabilities.llm_response_format
             )
 
-        # Parse JSON response
-        tool_command = self._parse_tool_command(message.content)
-
-        # If no tool command found, return the response directly (simple text response)
-        if not tool_command or "tool_name" not in tool_command:
-            # Check if the response might contain nested JSON with tool_name
-            # This can happen when LLM wraps the command in a response field
-            logger.warning("PARSE_WARNING", "No tool_name found at root level", {
-                "content_preview": message.content[:200]
-            })
-            response_log = f"LLM returned direct response without tool execution."
-            return AgentOutput(
-                response=message.content,
-                success=True,
-                cmd="task_complete",
-                log=response_log
-            )
-
-        tool_name = tool_command.get("tool_name")
-        arguments = tool_command.get("arguments", {})
-
-        # Check for task completion (accept both variants)
-        if tool_name in ["task_complete", "task_completed"]:
-            completion_log = f"Task completed: {arguments.get('message', 'No message provided')}"
-            return AgentOutput(
-                response=arguments.get("message", "Task completed successfully"),
-                success=True,
-                cmd="task_complete",
-                log=completion_log
-            )
-
-        # Check if command is dangerous and needs confirmation
-        is_dangerous = self._is_dangerous_command(tool_name, arguments)
-        if is_dangerous:
-            confirmation = self._ask_user_confirmation(tool_name, arguments)
-            if not confirmation:
-                cancel_log = f"User cancelled dangerous command: {tool_name}"
+            message = llm_response.choices[0].message if llm_response.choices else None
+            if not message or not message.content:
                 return AgentOutput(
-                    response=f"Command '{tool_name}' cancelled by user",
+                    response="Error: Empty response from LLM",
                     success=False,
-                    error="user_cancelled",
-                    cmd=tool_name,
-                    log=cancel_log,
-                    metadata={"tool_name": tool_name, "arguments": arguments}
+                    error="empty_llm_response",
+                    cmd="error"
                 )
 
-        # Execute tool
-        exec_log = f"Executing tool: {tool_name} with arguments: {arguments}"
+            content = message.content
+            
+            # 2. Parsing de la commande
+            tool_command = self._parse_tool_command(content)
 
-        tool_call = ToolCall(
-            id=f"{tool_name}-exec",
-            name=tool_name,
-            args=arguments
-        )
+            # Cas : JSON invalide ou introuvable
+            if not tool_command:
+                # Si c'est juste du texte sans intention d'outil, on retourne le texte
+                # Mais si le modèle *essayait* de faire du JSON (détecté par accolades), on retry
+                if "{" in content and "}" in content:
+                    error_msg = "Invalid JSON format. Return ONLY raw JSON."
+                    logger.warning("AGENT", "json_parse_error", "Retrying...")
+                    
+                    # On ajoute l'erreur au contexte temporaire pour que le LLM se corrige
+                    messages.append({"role": "assistant", "content": content})
+                    messages.append({"role": "user", "content": f"System Error: {error_msg}"})
+                    current_retries += 1
+                    continue
+                else:
+                    # Réponse conversationnelle simple
+                    return AgentOutput(
+                        response=content,
+                        success=True,
+                        cmd=ToolId.TASK_COMPLETED.value, # Treat direct response as completion
+                        log="Direct text response"
+                    )
 
-        tool_results = self._tool_scheduler.execute_tools([tool_call])
-        tool_result = tool_results[0] if tool_results else None
+            # 3. Extraction et Validation
+            tool_name = tool_command.get("tool_name")
+            arguments = tool_command.get("arguments", {})
 
-        if not tool_result:
-            error_log = f"Tool execution failed: {tool_name} - No result returned"
-            return AgentOutput(
-                response="Error: Tool execution failed",
-                success=False,
-                error="tool_execution_failed",
-                cmd=tool_name,
-                log=error_log
+            # 4. Vérification de Sécurité
+            if self._is_dangerous_command(tool_name, arguments):
+                confirmed = self._interaction_handler(tool_name, arguments)
+                if not confirmed:
+                    return AgentOutput(
+                        response=f"Action '{tool_name}' denied by user.",
+                        success=False,
+                        error="user_denied",
+                        cmd=tool_name
+                    )
+
+            # 5. Exécution de l'outil via le Scheduler
+            tool_call = ToolCall(
+                id=f"{tool_name}-{agent_id}",
+                name=tool_name,
+                args=arguments
             )
+            
+            try:
+                # Le Scheduler gère la validation des types, l'exécution et le formatage
+                tool_results = self._tool_scheduler.execute_tools([tool_call])
+                result = tool_results[0]
+                
+                # Traitement du résultat (qui peut être un Dict ou un Str)
+                result_data = result.get("result")
+                is_scheduler_success = result.get("success", False)
+                
+                # Détermination du succès métier (command failed vs tool crash)
+                command_success = is_scheduler_success
+                if isinstance(result_data, dict) and "success" in result_data:
+                     command_success = result_data.get("success", True)
 
-        # Format response
-        if tool_result["success"]:
-            result_str = str(tool_result["result"])
+                # Gestion spécifique de task_completed
+                # On utilise ToolId pour la comparaison propre
+                if tool_name == ToolId.TASK_COMPLETED.value and command_success:
+                    final_msg = "Task completed."
+                    if isinstance(result_data, dict):
+                        final_msg = result_data.get("message", final_msg)
+                    elif isinstance(result_data, str):
+                        final_msg = result_data
+                        
+                    return AgentOutput(
+                        response=final_msg,
+                        success=True,
+                        cmd=ToolId.TASK_COMPLETED.value,
+                        log="Objective reached via tool execution."
+                    )
 
-            # Check if the result itself indicates failure (e.g., bash command failed)
-            result_data = tool_result["result"]
-            command_success = True
+                # Conversion du résultat en string pour l'AgentOutput si c'est un dict
+                response_str = str(result_data) if not isinstance(result_data, str) else result_data
 
-            # For bash and similar tools, check if the actual command succeeded
-            if isinstance(result_data, dict) and "success" in result_data:
-                command_success = result_data["success"]
-
-            if command_success:
-                success_log = f"Tool {tool_name} executed successfully. Result length: {len(result_str)} chars"
                 return AgentOutput(
-                    response=result_str,
-                    success=True,
+                    response=response_str,
+                    success=command_success,
                     cmd=tool_name,
-                    log=success_log,
-                    metadata={"tool_name": tool_name, "arguments": arguments}
+                    log=f"Tool executed. Success: {command_success}"
                 )
-            else:
-                # Tool executed but command failed
-                error_detail = result_data.get("stderr", "") or result_data.get("error", "Command failed")
-                error_log = f"Tool {tool_name} command failed: {error_detail}"
+
+            except Exception as e:
+                logger.error("EXEC_ERR", f"Unhandled exception in TaskExecution for {tool_name}", str(e))
                 return AgentOutput(
-                    response=result_str,
+                    response=f"Internal Tool Error: {str(e)}",
                     success=False,
-                    error="command_failed",
-                    cmd=tool_name,
-                    log=error_log,
-                    metadata={"tool_name": tool_name, "arguments": arguments}
+                    error="tool_exception",
+                    cmd=tool_name
                 )
-        else:
-            error_detail = str(tool_result['result'])
-            error_log = f"Tool {tool_name} failed: {error_detail}"
-            return AgentOutput(
-                response=f"Tool error: {error_detail}",
-                success=False,
-                error="tool_error",
-                cmd=tool_name,
-                log=error_log,
-                metadata={"tool_name": tool_name, "error": error_detail}
-            )
+
+        # Fin de la boucle de retry sans succès
+        return AgentOutput(
+            response="Failed to generate valid JSON command after retries.",
+            success=False,
+            error="max_retries_exceeded",
+            cmd="json_error"
+        )
 
     def _parse_tool_command(self, content: str) -> Optional[Dict[str, Any]]:
-        """
-        Parse tool command from JSON content.
-        Handles both direct commands and commands nested in string fields.
-
-        Args:
-            content: JSON string with tool command
-
-        Returns:
-            Dict with tool_name and arguments, or None if invalid
-        """
+        """Tente d'extraire le JSON de manière agressive."""
         try:
-            content_stripped = content.strip()
-
-            # Quick check: if content doesn't start with { or [, it's not JSON
-            if not content_stripped.startswith('{') and not content_stripped.startswith('['):
-                return None
-
-            # Remove markdown code blocks if present
-            import re
-            json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content_stripped, re.DOTALL)
-            if json_match:
-                content_stripped = json_match.group(1).strip()
-
-            command = json.loads(content_stripped)
-
-            # Validate command structure
-            if not isinstance(command, dict):
-                return None
-
-            # If tool_name found at root level, return immediately
-            if "tool_name" in command:
-                return command
-
-            # Check for nested command JSON in common wrapper fields
-            nested_fields = ["result", "response", "message", "command", "data"]
-            for field in nested_fields:
-                if field in command and isinstance(command[field], str):
-                    # Try to parse the string as JSON
-                    try:
-                        nested_command = json.loads(command[field])
-                        if isinstance(nested_command, dict) and "tool_name" in nested_command:
-                            logger.info("PARSE_FIX", f"Extracted nested command from '{field}' field", {
-                                "tool_name": nested_command.get("tool_name")
-                            })
-                            return nested_command
-                    except json.JSONDecodeError:
-                        # This field doesn't contain valid JSON, continue checking others
-                        continue
-
-            # No tool_name found at root or in nested fields
+            # Nettoyage des balises markdown
+            cleaned = re.sub(r'^```(json)?|```$', '', content.strip(), flags=re.MULTILINE).strip()
+            
+            # Recherche du premier '{' et dernier '}'
+            start = cleaned.find('{')
+            end = cleaned.rfind('}')
+            
+            if start != -1 and end != -1:
+                json_str = cleaned[start:end+1]
+                data = json.loads(json_str)
+                
+                # Gestion des structures imbriquées courantes
+                if "tool_name" in data:
+                    return data
+                elif "function" in data and "name" in data["function"]:
+                    # Support format OpenAI functions
+                    return {
+                        "tool_name": data["function"]["name"],
+                        "arguments": json.loads(data["function"]["arguments"]) if isinstance(data["function"]["arguments"], str) else data["function"]["arguments"]
+                    }
             return None
-
-        except json.JSONDecodeError:
-            # Not valid JSON, that's fine - might be plain text response
-            return None
-        except Exception as e:
+        except Exception:
             return None
 
     def _is_dangerous_command(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
-        """
-        Check if a command is dangerous and requires user confirmation.
-
-        Args:
-            tool_name: Name of the tool to execute
-            arguments: Arguments for the tool
-
-        Returns:
-            True if command is dangerous, False otherwise
-        """
-        # Check if tool is in dangerous commands list
-        if tool_name in DANGEROUS_COMMANDS:
-            return True
-
-        # Special check for bash commands with destructive patterns
-        if tool_name == "bash":
-            command = arguments.get("command", "")
-            for pattern in VERY_DANGEROUS_BASH_PATTERNS:
-                if pattern in command:
+        """Vérifie la dangerosité via ToolId et Regex."""
+        # 1. Vérification via la liste centralisée des outils dangereux
+        dangerous_tools = ToolId.dangerous_tools()
+        
+        if tool_name in dangerous_tools:
+            # Cas spécial Bash: on analyse la commande interne
+            if tool_name == ToolId.EXECUTE_COMMAND.value or tool_name == "bash": # Support legacy alias
+                cmd = arguments.get("command", "")
+                if DANGEROUS_BASH_REGEX.search(cmd):
+                    logger.warning("SECURITY", "Dangerous Bash Pattern", cmd)
                     return True
-
+                # Si c'est juste "ls" ou "echo", on peut considérer safe,
+                # mais par défaut EXECUTE_COMMAND est classé dangereux. 
+                # On retourne True pour forcer la confirmation sauf whitelist explicite (optionnel)
+                return True
+            
+            return True
+            
         return False
 
-    def _ask_user_confirmation(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
-        """
-        Ask user for confirmation before executing dangerous command.
-
-        Args:
-            tool_name: Name of the tool
-            arguments: Tool arguments
-
-        Returns:
-            True if user confirms, False otherwise
-        """
-        # Format arguments for display
-        args_str = json.dumps(arguments, indent=2, ensure_ascii=False)
-
-        # Display warning
-        print("\n" + "=" * 70)
-        print(f"⚠️  DANGEROUS COMMAND DETECTED: {tool_name}")
-        print("=" * 70)
-
-        # Show reason if available
-        if tool_name in DANGEROUS_COMMANDS:
-            print(f"Reason: {DANGEROUS_COMMANDS[tool_name]}")
-
-        # Special message for bash with rm/mv/etc
-        if tool_name == "bash":
-            command = arguments.get("command", "")
-            for pattern in VERY_DANGEROUS_BASH_PATTERNS:
-                if pattern in command:
-                    print(f"⚠️  WARNING: Command contains '{pattern.strip()}' - this can DELETE or MOVE files!")
-                    break
-
-        # Show arguments
-        print(f"\nArguments:\n{args_str}")
-        print("=" * 70)
-
-        # Ask for confirmation
-        while True:
-            response = input("Execute this command? (y/n): ").strip().lower()
-            if response in ['y', 'yes']:
-                return True
-            elif response in ['n', 'no']:
-                return False
-            else:
-                print("Please answer 'y' or 'n'")
+    def _default_console_confirmation(self, tool_name: str, arguments: Dict) -> bool:
+        """Fallback pour utilisation console."""
+        print(f"\n⚠️  CONFIRMATION REQUISE : {tool_name}")
+        print(json.dumps(arguments, indent=2))
+        res = input("Exécuter ? (y/n): ").strip().lower()
+        return res in ['y', 'yes']

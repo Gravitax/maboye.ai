@@ -5,11 +5,16 @@ Provides command-line interface with input loop and display functionality.
 """
 
 import sys
+import os
+import readline
+import atexit
 from typing import Optional, Callable
 
 from core.logger import logger
-from cli.cli_utils import Color, _print_formatted_message
+from cli.cli_utils import Color, _print_formatted_message, format_path_with_gradient
 from cli.command_manager import CommandManager
+from cli.completer import CLICompleter
+from cli.system_command_manager import SystemCommandManager
 
 
 class Terminal:
@@ -23,19 +28,68 @@ class Terminal:
     def __init__(
         self,
         orchestrator=None,
-        prompt: str = f"{Color.BLUE}{Color.BOLD}You:{Color.RESET} > "
     ):
         """
         Initialize terminal.
 
         Args:
             orchestrator: Orchestrator instance for commands.
-            prompt: Prompt string to display.
         """
-        self.prompt = prompt
         self.running = False
         self._orchestrator = orchestrator
         self._command_manager = CommandManager(orchestrator=orchestrator, terminal=self)
+        self._system_command_manager = SystemCommandManager()
+        self._setup_readline()
+
+    @property
+    def prompt(self) -> str:
+        """Dynamically generate the prompt string based on the current working directory."""
+        current_dir = os.getcwd()
+        home_dir = os.path.expanduser("~")
+
+        # Shorten path if it's within the home directory
+        if current_dir.startswith(home_dir):
+            display_dir = "~" + current_dir[len(home_dir):]
+            if display_dir == "~": # If current_dir is exactly home_dir
+                display_dir = "~/"
+        else:
+            display_dir = current_dir
+            
+        colored_path = format_path_with_gradient(display_dir)
+
+        return f"{Color.BOLD}{colored_path}{Color.RESET} > "
+
+    def _setup_readline(self) -> None:
+        """Setup readline for history, navigation, and completion."""
+        histfile = os.path.join(os.path.expanduser("~"), ".maboye_ai_history")
+        try:
+            readline.read_history_file(histfile)
+            readline.set_history_length(1000)
+        except FileNotFoundError:
+            pass
+        
+        # Register cleanup to delete history on exit
+        atexit.register(self._cleanup_history)
+
+        # Setup completion
+        self._completer = CLICompleter(
+            self._command_manager.get_all_commands,
+            self._system_command_manager
+        )
+        readline.set_completer(self._completer.complete)
+        # Ensure / is treated as part of the word
+        readline.set_completer_delims(' \t\n')
+        # Enable cycling through options with Tab
+        readline.parse_and_bind("tab: menu-complete")
+
+    def _cleanup_history(self) -> None:
+        """Clean up history file on exit."""
+        histfile = os.path.join(os.path.expanduser("~"), ".maboye_ai_history")
+        if os.path.exists(histfile):
+            try:
+                os.remove(histfile)
+            except OSError:
+                pass
 
     def print_message(
         self,
@@ -105,12 +159,18 @@ class Terminal:
         if not user_input:
             return None
 
+        # 1. Internal Command (/command)
         command_data = self._command_manager.parse_command(user_input)
-
         if command_data:
             self._execute_parsed_command(command_data)
             return None
 
+        # 2. System Command (ls, cd, etc.)
+        if self._system_command_manager.is_system_command(user_input):
+            self._system_command_manager.execute(user_input)
+            return None
+
+        # 3. Agent Input
         return user_input
 
     def _sanitize_input(self, user_input: str) -> str:
@@ -150,7 +210,15 @@ class Terminal:
         except EOFError:
             return self._handle_eof()
         except KeyboardInterrupt:
-            return self._handle_keyboard_interrupt()
+            # Check if there is text in the buffer
+            if readline.get_line_buffer().strip():
+                # Text present: Cancel input (clear line behavior)
+                # Print newline to simulate cancellation visually
+                print("")
+                return ""
+            else:
+                # No text: Exit program
+                return self._handle_keyboard_interrupt()
 
     def _handle_eof(self) -> None:
         """
@@ -164,12 +232,13 @@ class Terminal:
     def _handle_keyboard_interrupt(self) -> None:
         """
         Handle keyboard interrupt signal.
+        Closes the program immediately.
 
         Returns:
-            None to signal interrupted input.
+            None (exits).
         """
-        self.print_message("", end="")
-        return None
+        self.print_message("\nExiting...", color=Color.YELLOW)
+        sys.exit(0)
 
     def run(self, input_handler: Optional[Callable[[str], None]] = None) -> None:
         """
@@ -218,6 +287,8 @@ class Terminal:
         """
         try:
             input_handler(processed_input)
+        except KeyboardInterrupt:
+            self.print_message("\nOrchestrator loop interrupted.", color=Color.YELLOW)
         except Exception as e:
             self._handle_input_error(e)
 

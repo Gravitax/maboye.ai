@@ -1,4 +1,5 @@
 import sys
+import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -18,6 +19,20 @@ class Application:
         """Initialize application."""
         self.orchestrator = None
         self.terminal = None
+
+    def _setup_app_directory(self):
+        """Ensure the application directory exists in the user's home folder."""
+        folder_name = os.getenv("FOLDER_NAME", ".maboye.ai")
+        home_dir = os.path.expanduser("~")
+        folder_path = os.path.join(home_dir, folder_name)
+
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+            # Set FOLDER_PATH env var for use by other components
+            os.environ["FOLDER_PATH"] = folder_path
+            logger.info("APP", f"Application directory initialized at: {folder_path}")
+        except Exception as e:
+            logger.error("APP", f"Failed to create application directory: {e}")
 
     def _register_agents(self):
         """
@@ -54,6 +69,9 @@ class Application:
 
     def setup(self):
         """Setup all components for the orchestrator and agents."""
+
+        # 0. Setup application directory
+        self._setup_app_directory()
 
         # 1. Load LLM configuration
         llm_config = LLMWrapperConfig()

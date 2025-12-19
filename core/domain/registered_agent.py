@@ -332,22 +332,3 @@ class RegisteredAgent:
             True if authorized, False otherwise
         """
         return self.agent_capabilities.can_use_tool(tool_id)
-
-    def __str__(self) -> str:
-        """String representation for logging."""
-        status = "active" if self.is_active else "inactive"
-        return (
-            f"RegisteredAgent(name={self.agent_identity.agent_name}, "
-            f"status={status})"
-        )
-
-    def __repr__(self) -> str:
-        """Detailed representation for debugging."""
-        return (
-            f"RegisteredAgent("
-            f"id={self.agent_identity.agent_id}, "
-            f"name={self.agent_identity.agent_name}, "
-            f"tools={len(self.agent_capabilities.authorized_tools)}, "
-            f"active={self.is_active}, "
-            f"created={self.created_at.isoformat()})"
-        )

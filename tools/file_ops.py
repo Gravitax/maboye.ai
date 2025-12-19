@@ -282,3 +282,56 @@ def copy_file(source: str, destination: str) -> bool:
 
     except Exception as e:
         raise FileOperationError(f"Failed to copy file: {e}")
+
+
+def move_path(src: str, dst: str) -> str:
+    """
+    Move or rename a file or directory.
+    
+    Args:
+        src: Source path
+        dst: Destination path
+        
+    Returns:
+        Success or error message
+    """
+    import shutil
+    try:
+        if not os.path.exists(src):
+            return f"Error: Source '{src}' does not exist."
+        shutil.move(src, dst)
+        return f"Successfully moved '{src}' to '{dst}'"
+    except Exception as e:
+        return f"Error moving path: {str(e)}"
+
+
+def delete_path(path: str, force: bool = False) -> str:
+    """
+    Delete a file or directory (recursively if directory).
+    
+    Args:
+        path: Path to delete
+        force: Force delete (required for directories)
+        
+    Returns:
+        Success or error message
+    """
+    import shutil
+    try:
+        if not os.path.exists(path):
+            return f"Error: Path '{path}' does not exist."
+        
+        # Basic security
+        if path in [".", "..", "/"]:
+            return "Error: Cannot delete root or current directory."
+
+        if os.path.isdir(path):
+            if not force:
+                return f"Error: '{path}' is a directory. Set force=True to delete recursively."
+            shutil.rmtree(path)
+            return f"Directory '{path}' deleted recursively."
+        else:
+            os.remove(path)
+            return f"File '{path}' deleted."
+    except Exception as e:
+        return f"Error deleting path: {str(e)}"

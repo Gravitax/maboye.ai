@@ -207,39 +207,3 @@ class AgentCapabilities:
             Number of tools the agent can use
         """
         return len(self.authorized_tools)
-
-    def is_unrestricted(self) -> bool:
-        """
-        Check if agent has unrestricted tool access.
-
-        Returns:
-            True if agent can use all tools, False if restricted
-        """
-        return len(self.authorized_tools) == 0
-
-    def __str__(self) -> str:
-        """String representation for logging."""
-        tool_summary = (
-            "all tools" if self.is_unrestricted()
-            else f"{self.get_tool_count()} tools"
-        )
-        tags_summary = (
-            ", ".join(self.specialization_tags[:3])
-            if self.specialization_tags else "none"
-        )
-
-        return (
-            f"AgentCapabilities(tools={tool_summary}, "
-            f"specializations=[{tags_summary}])"
-        )
-
-    def __repr__(self) -> str:
-        """Detailed representation for debugging."""
-        return (
-            f"AgentCapabilities("
-            f"description='{self.description[:50]}...', "
-            f"tools={self.get_tool_count()}, "
-            f"max_reasoning={self.max_reasoning_turns}, "
-            f"max_memory={self.max_memory_turns}, "
-            f"tags={self.specialization_tags})"
-        )

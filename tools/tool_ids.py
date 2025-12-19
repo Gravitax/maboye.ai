@@ -17,11 +17,22 @@ class ToolId(str, Enum):
     Agents reference these IDs in their configuration to specify available tools.
     """
 
+    # System / Control
+    TASK_COMPLETED = "task_completed"
+
     # File operations
     READ_FILE = "read_file"
     WRITE_FILE = "write_file"
     EDIT_FILE = "edit_file"
     LIST_DIRECTORY = "list_directory"
+    MOVE_PATH = "move_path"
+    DELETE_PATH = "delete_path"
+
+    # Web operations
+    FETCH_URL = "fetch_url"
+
+    # Code operations
+    CHECK_SYNTAX = "check_syntax"
 
     # Search operations
     GLOB_FILES = "glob_files"
@@ -37,6 +48,7 @@ class ToolId(str, Enum):
     GIT_COMMIT = "git_commit"
     GIT_DIFF = "git_diff"
     GIT_LOG = "git_log"
+    GIT_CHECKOUT = "git_checkout"
 
     def __str__(self) -> str:
         """Return the string value of the enum"""
@@ -53,6 +65,16 @@ class ToolId(str, Enum):
         return [tool.value for tool in cls]
 
     @classmethod
+    def control_tools(cls) -> list:
+        """
+        Get all control tool IDs.
+
+        Returns:
+            List of control tool IDs
+        """
+        return [cls.TASK_COMPLETED.value]
+
+    @classmethod
     def file_tools(cls) -> list:
         """
         Get all file operation tool IDs.
@@ -65,6 +87,8 @@ class ToolId(str, Enum):
             cls.WRITE_FILE.value,
             cls.EDIT_FILE.value,
             cls.LIST_DIRECTORY.value,
+            cls.MOVE_PATH.value,
+            cls.DELETE_PATH.value,
         ]
 
     @classmethod
@@ -105,7 +129,28 @@ class ToolId(str, Enum):
             cls.GIT_COMMIT.value,
             cls.GIT_DIFF.value,
             cls.GIT_LOG.value,
+            cls.GIT_CHECKOUT.value,
         ]
+
+    @classmethod
+    def web_tools(cls) -> list:
+        """
+        Get all web tool IDs.
+
+        Returns:
+            List of web tool IDs
+        """
+        return [cls.FETCH_URL.value]
+
+    @classmethod
+    def code_tools(cls) -> list:
+        """
+        Get all code tool IDs.
+
+        Returns:
+            List of code tool IDs
+        """
+        return [cls.CHECK_SYNTAX.value]
 
     @classmethod
     def safe_tools(cls) -> list:
@@ -116,6 +161,7 @@ class ToolId(str, Enum):
             List of safe tool IDs
         """
         return [
+            cls.TASK_COMPLETED.value,
             cls.READ_FILE.value,
             cls.LIST_DIRECTORY.value,
             cls.GLOB_FILES.value,
@@ -124,6 +170,8 @@ class ToolId(str, Enum):
             cls.GIT_STATUS.value,
             cls.GIT_DIFF.value,
             cls.GIT_LOG.value,
+            cls.FETCH_URL.value,
+            cls.CHECK_SYNTAX.value,
         ]
 
     @classmethod
@@ -140,4 +188,7 @@ class ToolId(str, Enum):
             cls.EXECUTE_COMMAND.value,
             cls.GIT_ADD.value,
             cls.GIT_COMMIT.value,
+            cls.MOVE_PATH.value,
+            cls.DELETE_PATH.value,
+            cls.GIT_CHECKOUT.value,
         ]

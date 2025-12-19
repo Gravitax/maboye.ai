@@ -199,17 +199,3 @@ class MemoryManager:
         # Since our cache doesn't support pattern matching, we'll clear the entire cache
         # In production, you might want a more sophisticated cache invalidation strategy
         self._cache.clear()
-
-    def __str__(self) -> str:
-        """String representation for logging."""
-        return (
-            f"Memory("
-            f"cache={self._cache})"
-        )
-
-    def __repr__(self) -> str:
-        """Detailed representation for debugging."""
-        return (
-            f"Memory("
-            f"cache={repr(self._cache)})"
-        )

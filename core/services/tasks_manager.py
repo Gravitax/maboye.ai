@@ -48,7 +48,7 @@ class TasksManager:
         registered_agent = self._agent_repository.find_by_name("DefaultAgent")
         agent = self._agent_factory.create_agent(registered_agent)
 
-        result = agent.run(user_prompt=user_prompt)
+        result = agent.run(task=user_prompt)
         result.metadata={"called_agents":[{"agent_name": agent._identity.agent_name}]}
         return result
 
@@ -110,5 +110,5 @@ class TasksManager:
         system_prompt = self._context_manager.get_execution_system_prompt()
         system_prompt += "\n\n" + self._context_manager.get_available_tools_prompt(agent)
 
-        result = agent.run(user_prompt=task, system_prompt=system_prompt)
+        result = agent.run(task=task, system_prompt=system_prompt)
         return result, {"agent_name": agent._identity.agent_name}

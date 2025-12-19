@@ -27,7 +27,7 @@ class ToolResult(TypedDict):
     """Represents the result of a tool execution."""
     tool_call_id: str  # The ID of the corresponding tool call
     tool_name: str
-    result: str
+    result: Any
     success: bool
     execution_time: float
 

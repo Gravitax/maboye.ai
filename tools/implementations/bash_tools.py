@@ -9,26 +9,7 @@ from typing import List, Dict, Any
 
 from tools.tool_base import Tool, ToolMetadata, ToolParameter
 from tools import shell, git_ops
-
-
-# Security: Safe commands whitelist
-SAFE_COMMANDS = {
-    'ls', 'pwd', 'echo', 'cat', 'head', 'tail', 'grep', 'find',
-    'wc', 'sort', 'uniq', 'diff', 'tree', 'file', 'stat',
-    'git', 'npm', 'pip', 'python', 'node', 'cargo', 'go',
-    'mkdir', 'cp', 'mv', 'touch', 'chmod', 'chown',
-    'which', 'whereis', 'whoami', 'hostname', 'date', 'cal',
-    'ps', 'top', 'df', 'du', 'free', 'uname'
-}
-
-# Security: Dangerous commands blacklist
-DANGEROUS_COMMANDS = {
-    'rm', 'rmdir', 'dd', 'mkfs', 'fdisk', 'parted',
-    'kill', 'killall', 'shutdown', 'reboot', 'halt',
-    'sudo', 'su', 'passwd', 'useradd', 'userdel',
-    'iptables', 'ufw', 'firewall-cmd',
-    'format', 'del', 'deltree'
-}
+from tools.security_constants import DANGEROUS_SHELL_COMMANDS
 
 
 class BashTool(Tool):
@@ -121,7 +102,7 @@ class BashTool(Tool):
         base_cmd = command.strip().split()[0] if command.strip() else ""
 
         # Check blacklist
-        if base_cmd in DANGEROUS_COMMANDS:
+        if base_cmd in DANGEROUS_SHELL_COMMANDS:
             raise ToolExecutionError(
                 f"Command '{base_cmd}' is blacklisted for safety reasons"
             )
@@ -402,3 +383,23 @@ class GitCommitTool(Tool):
             Commit result message
         """
         return git_ops.git_commit(message, repository_path)
+
+
+class GitCheckoutTool(Tool):
+    """Tool for managing branches"""
+    
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="git_checkout",
+            description="Switch branch or create new one",
+            parameters=[
+                ToolParameter(name="branch_name", type=str, description="Name of the branch", required=True),
+                ToolParameter(name="create_new", type=bool, description="Create new branch (-b)", default=False),
+                ToolParameter(name="path", type=str, description="Repo path", default=".")
+            ],
+            category="git",
+            dangerous=True
+        )
+
+    def execute(self, branch_name: str, create_new: bool = False, path: str = ".") -> str:
+        return git_ops.git_checkout(branch_name, create_new, path)

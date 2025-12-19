@@ -58,12 +58,12 @@ class Agent:
             context_manager=self._context_manager
         )
 
-    def run(self, user_prompt: str, system_prompt: str = "") -> AgentOutput:
+    def run(self, task: str, system_prompt: str = "") -> AgentOutput:
         """
         Execute agent with iterative task execution workflow.
 
         Args:
-            user_prompt: User input or task description
+            task: task description
             system_prompt: Additional system prompt (optional)
 
         Returns:
@@ -77,6 +77,7 @@ class Agent:
             system_prompt = self._capabilities.system_prompt + "\n\n" + system_prompt
         else:
             system_prompt = self._capabilities.system_prompt
+        system_prompt += f"\nYour task is {task}."
 
         # Clear agent memory
         self._memory_manager.clear_agent_memory(self._identity.agent_id)
@@ -100,7 +101,7 @@ class Agent:
             # Execute single command
             result = self._task_execution(
                 agent=self,
-                user_prompt=user_prompt,
+                task=task,
                 system_prompt=system_prompt
             )
 
@@ -110,11 +111,11 @@ class Agent:
                 "log": result.log
             })
 
-            # Save both user prompt and agent output in memory after execution
+            # Save both agent input and output in memory
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="user",
-                content=user_prompt
+                content=task
             )
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
@@ -125,14 +126,14 @@ class Agent:
             if result.cmd == "task_completed":
                 return result
             elif not result.success:
-            # Continue with simple prompt - context is already in memory
-                user_prompt = (
+            # fallback prompt - context is already in memory
+                task = (
                     f"The command '{result.cmd}' failed.\n"
-                    f"Error logs:\n{result.log}\n"
+                    f"Error logs:\n{result.log}\n\n"
                     "Analyze the failure and execute a corrected approach."
                 )
             else:
-                user_prompt = (
+                task = (
                     f"The command '{result.cmd}' succeeded.\n"
                     "Determine the next logical step or use 'task_completed' if finished."
                 )

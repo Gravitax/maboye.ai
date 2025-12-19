@@ -203,18 +203,3 @@ class ConversationContext:
             True if no history, False otherwise
         """
         return len(self.conversation_history) == 0
-
-    def __str__(self) -> str:
-        """String representation for logging."""
-        agent_name = self.agent_identity.agent_name
-        turn_count = self.get_turn_count()
-        return f"ConversationContext(agent={agent_name}, turns={turn_count})"
-
-    def __repr__(self) -> str:
-        """Detailed representation for debugging."""
-        return (
-            f"ConversationContext("
-            f"agent={self.agent_identity.agent_name}, "
-            f"turns={self.get_turn_count()}, "
-            f"created={self.created_at.isoformat()})"
-        )

@@ -137,15 +137,3 @@ class AgentIdentity:
             agent_name=agent_name,
             creation_timestamp=datetime.now()
         )
-
-    def __str__(self) -> str:
-        """String representation for logging and debugging."""
-        return f"AgentIdentity(name={self.agent_name}, id={self.agent_id[:8]}...)"
-
-    def __repr__(self) -> str:
-        """Detailed representation for debugging."""
-        return (
-            f"AgentIdentity(agent_id='{self.agent_id}', "
-            f"agent_name='{self.agent_name}', "
-            f"created={self.creation_timestamp.isoformat()})"
-        )

@@ -294,3 +294,41 @@ class FileInfoTool(Tool):
             Dictionary with file metadata
         """
         return file_ops.get_file_info(file_path)
+
+
+class MoveFileTool(Tool):
+    """Tool for moving or renaming files/directories"""
+    
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="move_path",
+            description="Move or rename a file or directory",
+            parameters=[
+                ToolParameter(name="src", type=str, description="Source path", required=True),
+                ToolParameter(name="dst", type=str, description="Destination path", required=True)
+            ],
+            category="file_operations",
+            dangerous=True
+        )
+
+    def execute(self, src: str, dst: str) -> str:
+        return file_ops.move_path(src, dst)
+
+
+class DeleteFileTool(Tool):
+    """Tool for deleting files/directories"""
+    
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="delete_path",
+            description="Delete a file or directory",
+            parameters=[
+                ToolParameter(name="path", type=str, description="Path to delete", required=True),
+                ToolParameter(name="force", type=bool, description="Force delete (required for directories)", default=False)
+            ],
+            category="file_operations",
+            dangerous=True
+        )
+
+    def execute(self, path: str, force: bool = False) -> str:
+        return file_ops.delete_path(path, force)
