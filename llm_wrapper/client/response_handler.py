@@ -5,7 +5,7 @@ Handles response extraction and logging.
 """
 
 from typing import Dict, Any, List
-from ...logger import logger
+from core.logger import logger
 from ..types import ChatResponse, ChatRequest
 from ..errors import LLMWrapperError
 

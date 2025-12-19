@@ -7,7 +7,7 @@ load_dotenv()
 
 from core.logger import logger
 from cli.terminal import Terminal
-from core.llm_wrapper import LLMWrapperConfig
+from llm_wrapper import LLMWrapperConfig
 from core.orchestrator import Orchestrator
 from core.domain import RegisteredAgent
 

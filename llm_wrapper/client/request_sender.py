@@ -6,7 +6,7 @@ Handles HTTP request sending with error handling.
 
 from typing import Dict, Any
 import requests
-from ...logger import logger
+from core.logger import logger
 from ..types import ChatRequest, ChatResponse
 from ..errors import LLMWrapperError
 from ..config import LLMWrapperConfig

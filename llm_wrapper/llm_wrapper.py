@@ -8,7 +8,7 @@ Delegates to specialized client components for clean separation of concerns.
 from typing import Optional, Union, List, Dict
 import requests
 
-from ..logger import logger
+from core.logger import logger
 from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse
 from .config import LLMWrapperConfig
 from .client import RequestBuilder, RequestSender, ResponseHandler

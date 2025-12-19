@@ -2,7 +2,7 @@
 
 **Base URL:** `https://192.168.239.20`
 
-This document provides an overview of the available API endpoints, their functionalities, and expected request/response formats, based on `core/llm_wrapper/test_routes.py`.
+This document provides an overview of the available API endpoints, their functionalities, and expected request/response formats, based on `llm_wrapper/test_routes.py`.
 
 ---
 

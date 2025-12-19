@@ -13,6 +13,12 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 import json
 
+# Define custom log levels
+SYSTEM_LEVEL = 25
+AGENT_LEVEL = 26
+logging.addLevelName(SYSTEM_LEVEL, "SYSTEM")
+logging.addLevelName(AGENT_LEVEL, "AGENT")
+
 
 def _get_main_script_directory() -> Path:
     """
@@ -38,6 +44,8 @@ class LogConfig:
         self.log_level = env.get('LOG_LEVEL', 'info').upper()
         self.log_console = self._parse_boolean_string(env.get('LOG_CONSOLE', 'true'))
         self.log_file = self._parse_boolean_string(env.get('LOG_FILE', 'true'))
+        self.log_system = self._parse_boolean_string(env.get('LOG_SYSTEM', 'true'))
+        self.log_agent = self._parse_boolean_string(env.get('LOG_AGENT', 'true'))
 
         # Use the main script's directory as the base for the default log path
         default_log_dir = str(_get_main_script_directory() / 'Logs')
@@ -62,6 +70,8 @@ class ColoredFormatter(logging.Formatter):
     COLORS = {
         'DEBUG': '\x1b[34m',    # Blue
         'INFO': '\x1b[36m',     # Cyan
+        'SYSTEM': '\x1b[46m\x1b[30m', # Cyan BG, Black FG
+        'AGENT': '\x1b[45m\x1b[97m',  # Magenta BG, White FG
         'WARNING': '\x1b[33m',  # Yellow
         'ERROR': '\x1b[31m',    # Red
         'CRITICAL': '\x1b[31;1m',# Bright Red
@@ -83,12 +93,27 @@ class ColoredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Formats the log record, adding color if enabled."""
-        # This is a hack to pass the no_color config to the formatter
         no_color = getattr(record, 'no_color', False)
-        if self.use_colors and not no_color:
-            color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
-            record.levelname = f"{color}{record.levelname}{self.COLORS['RESET']}"
-        return super().format(record)
+        
+        if not self.use_colors or no_color:
+            return super().format(record)
+
+        original_levelname = record.levelname
+        color = self.COLORS.get(original_levelname, self.COLORS['RESET'])
+        reset = self.COLORS['RESET']
+        
+        # For SYSTEM and AGENT, apply color (background) to the entire line
+        if original_levelname in ['SYSTEM', 'AGENT']:
+            formatted = super().format(record)
+            return f"{color}{formatted}{reset}"
+        else:
+            # For others, only color the level name
+            try:
+                record.levelname = f"{color}{original_levelname}{reset}"
+                return super().format(record)
+            finally:
+                # Restore original levelname to avoid side effects
+                record.levelname = original_levelname
 
 
 class Logger:
@@ -131,6 +156,8 @@ class Logger:
         self.info('LOGGER', 'Logger initialized', {
             'level': self.config.log_level,
             'file_logging': self.config.log_file,
+            'system_logging': self.config.log_system,
+            'agent_logging': self.config.log_agent,
             'log_dir': self.config.log_dir
         })
 
@@ -252,7 +279,14 @@ class Logger:
 
     def _log(self, level: str, debug_id: str, message: str, data: Optional[Any] = None):
         """Private helper to handle all logging calls."""
-        log_method = getattr(self.logger, level.lower(), self.logger.info)
+        # Handle custom levels
+        if level.upper() == 'SYSTEM':
+            log_method = lambda msg, **kwargs: self.logger.log(SYSTEM_LEVEL, msg, **kwargs)
+        elif level.upper() == 'AGENT':
+            log_method = lambda msg, **kwargs: self.logger.log(AGENT_LEVEL, msg, **kwargs)
+        else:
+            log_method = getattr(self.logger, level.lower(), self.logger.info)
+            
         extra = {'no_color': self.config.no_color}
         log_method(self._format_message(debug_id, message, data), extra=extra)
 
@@ -261,6 +295,16 @@ class Logger:
 
     def info(self, debug_id: str, message: str, data: Optional[Any] = None):
         self._log('info', debug_id, message, data)
+
+    def system(self, debug_id: str, message: str, data: Optional[Any] = None):
+        """Log at SYSTEM level if enabled."""
+        if self.config.log_system:
+            self._log('system', debug_id, message, data)
+
+    def agent(self, debug_id: str, message: str, data: Optional[Any] = None):
+        """Log at AGENT level if enabled."""
+        if self.config.log_agent:
+            self._log('agent', debug_id, message, data)
 
     def warning(self, debug_id: str, message: str, data: Optional[Any] = None):
         self._log('warning', debug_id, message, data)

@@ -3,7 +3,7 @@ Authentication route for the LLM wrapper.
 """
 import requests
 from ..errors import LLMWrapperError
-from ...logger import logger
+from core.logger import logger
 
 def authenticate(self) -> None:
     """

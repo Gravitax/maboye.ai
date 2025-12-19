@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 from core.logger import logger
-from core.llm_wrapper import LLMWrapper, LLMWrapperConfig
+from llm_wrapper import LLMWrapper, LLMWrapperConfig
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import get_registry
 from tools.implementations import register_all_tools

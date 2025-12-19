@@ -6,7 +6,7 @@ Uses TaskExecution to execute one command at a time.
 """
 
 from core.logger import logger
-from core.llm_wrapper import LLMWrapper
+from llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import AgentIdentity, AgentCapabilities

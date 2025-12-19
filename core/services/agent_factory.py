@@ -8,7 +8,7 @@ Bridges domain objects with executable agent instances.
 from typing import Optional
 
 from core.logger import logger
-from core.llm_wrapper import LLMWrapper
+from llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
 from tools.tool_base import ToolRegistry
 from core.domain import RegisteredAgent
