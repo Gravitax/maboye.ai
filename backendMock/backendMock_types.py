@@ -181,30 +181,3 @@ class SignInResponse(BaseModel):
     """Response for user sign-in."""
     token: str
     user: User
-
-
-class TestPlanRequest(BaseModel):
-    """Request for a test execution plan."""
-    test_name: str
-
-
-class ActionStep(BaseModel):
-    """Single action to execute"""
-    tool_name: str
-    arguments: dict
-    description: str
-
-
-class ExecutionStep(BaseModel):
-    """Step containing one or more actions"""
-    step_number: int
-    description: str
-    actions: List[ActionStep]
-    depends_on: Optional[int] = None
-
-
-class TestPlanResponse(BaseModel):
-    """Response with a test execution plan."""
-    steps: List[ExecutionStep]
-    role: str = "assistant"
-    content: Optional[str] = None

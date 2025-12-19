@@ -84,7 +84,8 @@ class RequestBuilder:
         messages: List[Message],
         config: LLMWrapperConfig,
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        response_format: Optional[str] = None
     ) -> ChatRequest:
         """
         Build chat request with optional parameter overrides.
@@ -94,15 +95,21 @@ class RequestBuilder:
             config: LLM configuration
             temperature: Optional temperature override
             max_tokens: Optional max_tokens override
+            response_format: Optional response format ("json" or "default")
 
         Returns:
             ChatRequest object ready to send
         """
+        format_dict = None
+        if response_format == "json":
+            format_dict = {"type": "json_object"}
+
         return ChatRequest(
             model=config.model,
             messages=messages,
             temperature=temperature if temperature is not None else config.temperature,
-            max_tokens=max_tokens if max_tokens is not None else config.max_tokens
+            max_tokens=max_tokens if max_tokens is not None else config.max_tokens,
+            response_format=format_dict
         )
 
     def build_embedding_request(

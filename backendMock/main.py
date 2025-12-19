@@ -19,10 +19,8 @@ sys.path.insert(0, str(project_root))
 from core.logger import logger
 
 from backendMock.utils import get_env_variable
-from backendMock.routes import tests
 from backendMock.routes import auth
 from backendMock.routes import chat
-from backendMock.routes import tests_iterative
 from backendMock.routes import completion
 from backendMock.routes import models
 from backendMock.routes import embedding
@@ -44,17 +42,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-app.include_router(tests.router)
 app.include_router(auth.router)
 app.include_router(chat.router)
-app.include_router(tests_iterative.router)
 app.include_router(completion.router)
 app.include_router(models.router)
 app.include_router(embedding.router)
 app.include_router(ollama.router)
 app.include_router(health.router)
-
 
 @app.get("/", tags=["Health"])
 def root():
@@ -95,12 +89,6 @@ def root():
             "embedding": [
                 "GET  /embed/v1/models",
                 "POST /embed/v1/embeddings"
-            ],
-            "tests": [
-                "POST /tests"
-            ],
-            "iterative": [
-                "POST /tests/iterative"
             ]
         }
     }

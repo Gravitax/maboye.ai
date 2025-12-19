@@ -18,22 +18,13 @@ from tools.implementations import register_all_tools
 from agents.types import AgentOutput
 from core.repositories import InMemoryMemoryRepository, InMemoryAgentRepository
 from core.services import MemoryManager, LRUCache, AgentFactory
-from core.services.execution_manager import ExecutionManager
+from core.services.tasks_manager import TasksManager
 from core.services.memory_formatter import MemoryFormatter
 from core.services.context_manager import ContextManager
 
 class Orchestrator:
     """
     Central coordinator for the multi-agent system.
-
-    Manages repositories, services, and execution of agents using
-    the domain-driven architecture.
-
-    Attributes:
-        _memory_repository: Memory persistence
-        _agent_repository: Agent persistence
-        _memory_manager: Memory coordination service
-        _agent_factory: Agent instance creation
     """
 
     def __init__(self, llm_config: Optional[LLMWrapperConfig] = None):
@@ -44,12 +35,6 @@ class Orchestrator:
             llm_config: Configuration for the LLM wrapper
         """
         self._llm_config = llm_config or LLMWrapperConfig()
-
-        # Core infrastructure
-        self._llm: LLMWrapper
-        self._tool_scheduler: ToolScheduler
-        self._tool_registry: Any
-
         self._setup_components()
 
     def _setup_components(self) -> None:
@@ -65,18 +50,20 @@ class Orchestrator:
             memory_repository=self._memory_repository,
             cache_strategy=cache_strategy
         )
-
         # Initialize memory formatter
         self._memory_formatter = MemoryFormatter(self._memory_repository)
+
         # Register tools
         register_all_tools()
         self._tool_registry = get_registry()
         # Initialize tool scheduler
         self._tool_scheduler = ToolScheduler(registry=self._tool_registry)
+
         # Initialize LLM wrapper
         self._llm = LLMWrapper(self._llm_config)
         # Initialize context manager
         self._context_manager = ContextManager(self._memory_repository)
+
         # Initialize agent factory for creating specialized agents
         self._agent_factory = AgentFactory(
             llm=self._llm,
@@ -84,8 +71,8 @@ class Orchestrator:
             tool_registry=self._tool_registry,
             memory=self._memory_manager
         )
-        # Initialize execution manager
-        self._execution_manager = ExecutionManager(
+        # Initialize tasks manager
+        self._tasks_manager = TasksManager(
             llm=self._llm,
             tool_scheduler=self._tool_scheduler,
             tool_registry=self._tool_registry,
@@ -94,6 +81,9 @@ class Orchestrator:
             agent_factory=self._agent_factory,
             agent_repository=self._agent_repository
         )
+
+        # Tasks agent will be created lazily when first needed
+        self._tasks_agent = None
 
     def get_agent_repository(self) -> InMemoryAgentRepository:
         """Get the agent repository."""
@@ -131,33 +121,46 @@ class Orchestrator:
             metadata=metadata
         )
 
+    def _ensure_tasks_agent_initialized(self):
+        """Ensure tasks agent is initialized (lazy initialization)."""
+        if self._tasks_agent is None:
+            registered_agent = self._agent_repository.find_by_name("TasksAgent")
+            if registered_agent:
+                self._tasks_agent = self._agent_factory.create_agent(registered_agent)
+            else:
+                raise ValueError("TasksAgent not found in repository. Ensure agents are registered before use.")
+
+    def _get_tasks_list(self, user_prompt: str, system_prompt: str):
+        import json
+
+        self._ensure_tasks_agent_initialized()
+
+        result = self._tasks_agent.run(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt
+        )
+        tasks = {}
+        if result.success == True:
+            response = result.response.strip()
+            if response:
+                try:
+                    tasks = json.loads(response)
+                except json.JSONDecodeError as e:
+                    tasks = {}
+        return tasks
+
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
-        Process user input through autonomous workflow with dynamic todolist.
-
-        Workflow:
-        1. Create StateManager and initialize todolist from user input
-        2. ExecutionManager executes steps with dynamic todolist updates
-        3. Each step can add/remove/modify todolist based on findings
-        4. Loop continues until all steps completed
-        5. Final aggregated result returned
+        Process user input through autonomous workflow.
 
         Args:
             user_input: User input to process
 
         Returns:
-            AgentOutput with final result
+            AgentOutput
         """
-        user_input = user_input.strip()
-        # Get conversation context from orchestrator history
-        context = self._context_manager.format_context_as_string(
-            agent_id="orchestrator",
-            max_turns=10
-        )
-
         # Generate unique conversation ID
         conversation_id = f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
-
         # Save user input in orchestrator memory
         self._memory_manager.save_conversation_turn(
             agent_id="orchestrator",
@@ -167,9 +170,33 @@ class Orchestrator:
         )
 
         try:
-            # Execute autonomous workflow
-            result = self._execution_manager.execute(user_input, context)
-            self._save_orchestrator_output(result, conversation_id)
+            executing = True
+            self._ensure_tasks_agent_initialized()
+
+            # user_prompt = self._context_manager.format_context_as_string(
+            #     agent_id="orchestrator",
+            #     max_turns=6
+            # )
+            user_prompt = user_input            
+            system_prompt = self._context_manager.get_taskslist_system_prompt()
+            system_prompt += self._context_manager.get_available_tools_prompt(self._tasks_agent)
+
+            while executing:
+                logger.info("ORCHESTRATOR", "---------- create tasks list start")
+                tasks = self._get_tasks_list(user_prompt, system_prompt)
+                logger.info("ORCHESTRATOR", "---------- create tasks list end")
+                logger.info("ORCHESTRATOR", "---------- tasks manager start")
+                result = self._tasks_manager.execute(user_prompt, tasks)
+                if result.success == False:
+                    # todo: build prompt on resultat log to loop again with error context
+                    user_prompt = ""
+                    system_prompt = ""
+                    executing = False
+                    logger.info("ORCHESTRATOR", "tasks manager failed")
+                else:
+                    executing = False
+                logger.info("ORCHESTRATOR", "---------- tasks manager end", { "success": result.success })
+                self._save_orchestrator_output(result, conversation_id)
             return result
 
         except Exception as e:

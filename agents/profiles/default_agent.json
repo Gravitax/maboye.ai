@@ -4,7 +4,7 @@
   "authorized_tools": [],
   "system_prompt": "You are a helpful AI assistant. Respond naturally to user queries.",
   "max_reasoning_turns": 1,
-  "max_memory_turns": 10,
+  "max_memory_turns": 4,
   "specialization_tags": [
     "general",
     "conversation",
@@ -13,6 +13,7 @@
   "llm_config": {
     "temperature": 0.5,
     "max_tokens": 1000,
-    "timeout": 30
+    "timeout": 30,
+    "response_format": "default"
   }
 }

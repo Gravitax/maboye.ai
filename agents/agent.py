@@ -1,8 +1,8 @@
 """
 Modern Agent Implementation
 
-Agent with plan-based execution workflow.
-Uses AgentExecution to manage execution logic.
+Agent with iterative single-command execution workflow.
+Uses TaskExecution to execute one command at a time.
 """
 
 from core.logger import logger
@@ -12,24 +12,24 @@ from tools.tool_base import ToolRegistry
 from core.domain import AgentIdentity, AgentCapabilities
 from core.services.memory_manager import MemoryManager
 from core.services.context_manager import ContextManager
-from core.services.plan_execution_service import PlanExecutionService, PlanExecutionError
-from core.services.agent_execution import AgentExecution
+from agents.task_execution import TaskExecution
 from agents.types import AgentOutput
 
 
 class Agent:
     """
-    Modern agent implementation using plan-based execution.
+    Modern agent implementation using iterative task execution.
 
     Workflow:
-    1. Build conversation messages with history
-    2. Delegate to AgentExecution for plan execution
-    3. Save results to memory and return output
+    1. Execute single command via TaskExecution
+    2. Check command result (task_completed, continue, error)
+    3. Repeat until task completed or max iterations reached
 
-    The execution coordinator handles:
-    - Querying LLM for execution plans
-    - Parsing and executing plans
-    - Retry logic on errors
+    The task execution coordinator handles:
+    - Querying LLM for next command
+    - Parsing JSON response
+    - Executing single tool
+    - Returning result with cmd status
     """
 
     def __init__(
@@ -48,75 +48,92 @@ class Agent:
         self._tool_registry = tool_registry
         self._memory_manager = memory_manager
 
-        # Plan execution service
-        self.plan_execution_service = PlanExecutionService(tool_scheduler, self._tool_registry)
-
         # Context manager for conversation history
         self._context_manager = ContextManager(memory_manager._memory_repository)
 
-        # Execution coordinator (handles plan execution logic)
-        self._execution_coordinator = AgentExecution(
+        # Task execution coordinator (callable for single command execution)
+        self._task_execution = TaskExecution(
             llm=llm,
-            plan_execution_service=self.plan_execution_service,
-            memory=memory_manager
+            tool_scheduler=tool_scheduler,
+            context_manager=self._context_manager
         )
-
-        pass
 
     def run(self, user_prompt: str, system_prompt: str = "") -> AgentOutput:
         """
-        Execute agent with plan-based workflow.
+        Execute agent with iterative task execution workflow.
 
-        Workflow:
-        1. Build conversation messages with history
-        2. Delegate to execution coordinator for plan execution with retry
-        3. Save results and return output
+        Args:
+            user_prompt: User input or task description
+            system_prompt: Additional system prompt (optional)
+
+        Returns:
+            AgentOutput with final result
         """
+        max_iterations = self._capabilities.max_reasoning_turns
+        iteration = 0
+
+        # Build system prompt
         if len(system_prompt) > 0:
-            system_prompt += "\n" + system_prompt
+            system_prompt = self._capabilities.system_prompt + "\n\n" + system_prompt
         else:
             system_prompt = self._capabilities.system_prompt
-        try:
-            # Build conversation messages with history using context manager
-            messages = self._context_manager.build_messages(
-                agent_id=self._identity.agent_id,
-                system_prompt=system_prompt,
-                max_turns=self._capabilities.max_memory_turns
+
+        # Clear agent memory
+        self._memory_manager.clear_agent_memory(self._identity.agent_id)
+
+        result = AgentOutput(
+            response="",
+            success=False,
+            error="not_started",
+            agent_id=self._identity.agent_id
+        )
+
+        # Iterative execution loop
+        while iteration < max_iterations:
+            iteration += 1
+
+            logger.info("AGENT", "iteration", {
+                "iteration": iteration,
+                "max_iterations": max_iterations
+            })
+
+            # Execute single command
+            result = self._task_execution(
+                agent=self,
+                user_prompt=user_prompt,
+                system_prompt=system_prompt
             )
 
-            # Save user query
+            logger.info("AGENT", "output", {
+                "cmd": result.cmd,
+                "result": result.response,
+                "log": result.log
+            })
+
+            # Save both user prompt and agent output in memory after execution
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="user",
                 content=user_prompt
             )
-
-            # Execute via coordinator (handles plan execution, retry logic, etc.)
-            response = self._execution_coordinator.execute(
-                messages=messages,
-                user_prompt=user_prompt,
-                agent_id=self._identity.agent_id,
-                max_turns=self._capabilities.max_reasoning_turns,
-                llm_temperature=self._capabilities.llm_temperature,
-                llm_max_tokens=self._capabilities.llm_max_tokens
-            )
-
-            # Save final response
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="assistant",
-                content=response.response
-            )
-            return response
-
-        except (PlanExecutionError, Exception) as e:
-            return AgentOutput(
-                response=f"Error: {str(e)}",
-                success=False,
-                error=str(e),
-                agent_id=self._identity.agent_id
+                content=f"\nexecuted command: {result.cmd}\nresult: {result.response}\nlog: {result.log}"
             )
 
+            # Check command status
+            if result.cmd == "task_complete":
+                return result
+            elif not result.success:
+                # Continue with simple prompt - context is already in memory
+                user_prompt = "The previous command failed. Please try a different approach."
+            else:
+                # Continue with simple prompt - context is already in memory
+                user_prompt = "What is the next step?"
+        # Max iterations reached
+        result.error = "Max iterations reached"
+        return result
 
     def get_identity(self) -> AgentIdentity:
         """Get agent identity."""
@@ -125,6 +142,3 @@ class Agent:
     def get_capabilities(self) -> AgentCapabilities:
         """Get agent capabilities."""
         return self._capabilities
-
-    def __repr__(self) -> str:
-        return f"<Agent name='{self._identity.agent_name}' id='{self._identity.agent_id}'>"

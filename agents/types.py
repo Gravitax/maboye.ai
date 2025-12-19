@@ -56,7 +56,9 @@ class AgentOutput(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     success: bool = True
     error: Optional[str] = None
-    agent_id: Optional[str] = None # New field to carry the agent ID
+    agent_id: Optional[str] = None
+    cmd: Optional[str] = None
+    log: Optional[str] = None
 
 
 # Expose all types for clear imports

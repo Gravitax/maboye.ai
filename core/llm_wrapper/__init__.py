@@ -18,8 +18,7 @@ from .types import (
     Model,
     ModelsResponse,
     EmbeddingRequest,
-    EmbeddingResponse,
-    TestPlanResponse,
+    EmbeddingResponse
 )
 
 __all__ = [
@@ -38,8 +37,7 @@ __all__ = [
     'Model',
     'ModelsResponse',
     'EmbeddingRequest',
-    'EmbeddingResponse',
-    'TestPlanResponse',
+    'EmbeddingResponse'
 ]
 
 __version__ = "3.0.0"

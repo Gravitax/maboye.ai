@@ -155,6 +155,7 @@ class RegisteredAgent:
         llm_temperature: float = 0.7,
         llm_max_tokens: int = 1000,
         llm_timeout: int = 30,
+        llm_response_format: str = "default",
         is_active: bool = True
     ) -> 'RegisteredAgent':
         """
@@ -197,7 +198,8 @@ class RegisteredAgent:
             specialization_tags=specialization_tags or [],
             llm_temperature=llm_temperature,
             llm_max_tokens=llm_max_tokens,
-            llm_timeout=llm_timeout
+            llm_timeout=llm_timeout,
+            llm_response_format=llm_response_format
         )
 
         return RegisteredAgent(

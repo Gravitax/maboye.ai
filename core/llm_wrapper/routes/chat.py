@@ -10,7 +10,9 @@ def chat(
     messages: List[Message],
     verbose: bool = False,
     temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = None,
+    response_format: Optional[str] = None
+
 ) -> Union[str, ChatResponse]:
     """
     Create chat completion.
@@ -30,7 +32,7 @@ def chat(
     """
     self._authenticate()
     url = self.request_builder.build_chat_url(self.config)
-    request = self.request_builder.build_chat_request(messages, self.config, temperature, max_tokens)
+    request = self.request_builder.build_chat_request(messages, self.config, temperature, max_tokens, response_format)
     response = self.request_sender.send_chat_request(url, request, self.session, self.config)
 
     if verbose:

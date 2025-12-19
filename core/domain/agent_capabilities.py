@@ -25,6 +25,7 @@ class AgentCapabilities:
         llm_temperature: Temperature for LLM calls
         llm_max_tokens: Max tokens for LLM responses
         llm_timeout: Timeout in seconds for LLM calls
+        llm_response_format: Response format ("json" or "default")
     """
 
     description: str
@@ -36,6 +37,7 @@ class AgentCapabilities:
     llm_temperature: float = 0.7
     llm_max_tokens: int = 1000
     llm_timeout: int = 30
+    llm_response_format: str = "default"
 
     def __post_init__(self):
         """

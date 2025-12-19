@@ -45,7 +45,8 @@ class Application:
                 specialization_tags=profile.get("specialization_tags", []),
                 llm_temperature=llm_config.get("temperature", 0.7),
                 llm_max_tokens=llm_config.get("max_tokens", 1000),
-                llm_timeout=llm_config.get("timeout", 30)
+                llm_timeout=llm_config.get("timeout", 30),
+                llm_response_format=llm_config.get("response_format", "default")
             )
 
             agent_repository.save(agent)

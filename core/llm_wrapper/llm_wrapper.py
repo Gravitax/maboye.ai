@@ -9,10 +9,10 @@ from typing import Optional, Union, List, Dict
 import requests
 
 from ..logger import logger
-from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse, TestPlanResponse
+from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse
 from .config import LLMWrapperConfig
 from .client import RequestBuilder, RequestSender, ResponseHandler
-from .routes import auth, chat, embedding, models, test, test_iterative
+from .routes import auth, chat, embedding, models
 
 
 class LLMWrapper:
@@ -75,7 +75,8 @@ class LLMWrapper:
         messages: List[Message],
         verbose: bool = False,
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        response_format: Optional[str] = None
     ) -> Union[str, ChatResponse]:
         """
         Send chat completion request.
@@ -85,11 +86,12 @@ class LLMWrapper:
             verbose: Return full response if True, content only if False
             temperature: Optional temperature override
             max_tokens: Optional max_tokens override
+            response_format: Optional response format ("json" or "default")
 
         Returns:
             ChatResponse if verbose=True, message content string if verbose=False
         """
-        return chat.chat(self, messages, verbose, temperature, max_tokens)
+        return chat.chat(self, messages, verbose, temperature, max_tokens, response_format)
 
     def embedding(self, input_texts: List[str]) -> EmbeddingResponse:
         """
@@ -120,38 +122,6 @@ class LLMWrapper:
             ModelsResponse with embedding models
         """
         return embedding.list_embedding_models(self)
-
-    def test(self, test_name: str) -> TestPlanResponse:
-        """
-        Get test execution plan (for testing).
-
-        Args:
-            test_name: Test case name
-
-        Returns:
-            TestPlanResponse with execution steps
-        """
-        return test.test(self, test_name)
-
-    def test_iterative(
-        self,
-        messages: List[Dict],
-        scenario: str = "auto"
-    ) -> Dict:
-        """
-        Run iterative test workflow (for testing).
-
-        Args:
-            messages: Conversation messages
-            scenario: Test scenario
-            temperature: Optional temperature
-            max_tokens: Optional max_tokens
-            timeout: Optional timeout
-
-        Returns:
-            Dictionary with test results
-        """
-        return test_iterative.test_iterative(self, messages, scenario)
 
     def close(self) -> None:
         """

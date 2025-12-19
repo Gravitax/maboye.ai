@@ -166,14 +166,6 @@ class ContextManager:
             Last turn dict or None if no history
         """
         return self._memory_repository.get_last_turn(agent_id)
-
-    def __str__(self) -> str:
-        """String representation."""
-        return "ContextManager(ready)"
-
-    def __repr__(self) -> str:
-        """Detailed representation."""
-        return f"ContextManager(memory_repository={type(self._memory_repository).__name__})"
     
     def get_available_tools_prompt(self, agent) -> str:
         """
@@ -191,7 +183,7 @@ class ContextManager:
             return "No tools available."
 
         tool_registry = agent._tool_registry
-        lines = ["Available tools:"]
+        lines = ["\nAVAILABLE TOOLS:"]
 
         for tool_name in authorized_tools:
             tool_info = tool_registry.get_tool_info(tool_name)
@@ -208,92 +200,49 @@ class ContextManager:
                         params.append(f"{param_name}{param_required}")
                     if params:
                         lines.append(f"  Parameters: {', '.join(params)}")
-
+        lines.append(f"- task_completed: command to use when the task do not require anymore operation to be completed")
         return "\n".join(lines)
     
-    def get_todolist_system_prompt(self) -> str:
+    def get_taskslist_system_prompt(self) -> str:
         return """
-You analyze user queries and return ONLY one of two responses:
+You are a Senior Software Architect.
+Your role is to plan code modifications and system actions requested by the user.
 
-1. For SIMPLE queries:
-   - Greetings/Social: "Hello", "How are you?"
-   - Informational/Memory: "Remember this...", "My name is...", "Keep in mind X"
-   - Single direct questions: "What is 2+2?"
-   - Identity changes: "Your name is now..."
-   RESPONSE: No TodoList needed for this simple query.
+OUTPUT RULES:
+1. Respond ONLY in strict JSON format.
+2. NO conversational text before or after the JSON.
 
-2. For COMPLEX queries (Requiring external tools or multi-step technical workflows):
-   - File manipulation, code analysis, system commands, or data processing.
-   RESPONSE: RAW JSON ONLY (NO markdown).
-
-JSON Schema:
+JSON SCHEMA:
 {
-  "todo_list": [
-    {
-      "step_id": "step_1",
-      "description": "string",
-      "depends_on": null | "step_n"
-    },
-    {
-      "step_id": "step_2",
-      "description": "string",
-      "depends_on": step_1"
-    }
+  "analyse": "String containing technical explanation or context.",
+  "tasks": [
+    "String description of task 1"
   ]
 }
 
-RULES:
-- STRICT JSON output only. No markdown, no prose, no ```json.
-- NO conversational text before or after output.
-- If the request can be fulfilled by the LLM's internal memory or knowledge without using a tool: Return "No TodoList needed".
-- Do not plan "Store in memory" or "Note this" as steps.
-- Max 6 steps.
-- Use sequential IDs (step_1, step_2...).
-- Keep descriptions clear and actionable
-
-Examples:
-User: "Hello how are you ?"
-Assistant: No TodoList needed for this simple query.
-
-User: "Analyse ce dossier"
-Assistant: {"todo_list": [{"step_id": "step_1", "description": "Lister le contenu du répertoire", "depends_on": null}, {"step_id": "step_2", "description": "Lire le contenu des fichiers identifiés", "depends_on": "step_1"}, {"step_id": "step_3", "description": "Synthétiser les informations", "depends_on": "step_2"}]}
+INSTRUCTIONS:
+- "analyse": Assess technical implications.
+- "tasks": Provide an ordered list of clear instructions for the developer agent.
+- IMPORTANT: Generate tasks for ANY request requiring system interaction (listing files, reading code, debugging, or running commands).
+- Return an EMPTY list `[]` ONLY for pure conversation (e.g., "Hello", "How are you") unrelated to the project.
 """
 
-    def get_agent_system_prompt(self) -> str:
+    def get_execution_system_prompt(self) -> str:
         return """
-JSON Schema:
-{
-  "steps": [
-    {
-      "step_number": integer,
-      "description": "string",
-      "actions": [
-        {
-          "tool_name": "string",
-          "arguments": {},
-          "description": "string"
-        }
-      ]
-    },
-    {
-      "step_number": integer,
-      "description": "string",
-      "actions": [
-        {
-          "tool_name": "string",
-          "arguments": {},
-          "description": "string"
-        }
-      ]
-    }
-  ]
-}
+You are an autonomous execution agent.
+Your goal is to complete the specific task assigned strictly, without deviating.
 
-RULES:
-- STRICT JSON output only. No markdown, no prose, no ```json.
-- NO conversational text before or after output.
-- Each step must be logically sequenced.
-- Keep descriptions clear and actionable
-- Only use tools listed in 'Authorized Tools'.
-- 'arguments' must strictly match the tool signature.
+EXECUTION RULES:
+1. Analyze the current context and previous tool outputs.
+2. STRICT SCOPE: Do NOT invent new steps. If asked to "list files", ONLY list files. Do NOT read them unless explicitly asked.
+3. STOPPING CONDITION: If the previous tool output contains the requested information or completes the action, you MUST use the "task_completed" tool immediately.
+4. Respond ONLY with a JSON object.
+
+JSON SCHEMA:
+{
+  "tool_name": "exact_name_of_the_tool",
+  "arguments": {
+    "arg_name": "value"
+  }
+}
 """

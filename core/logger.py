@@ -185,15 +185,69 @@ class Logger:
         except Exception as e:
              self.logger.error(f"[LOGGER] Failed to rotate logs: {e}")
 
+    def _pretty_format(self, data: Any, indent_level: int = 1) -> str:
+        """Formats data recursively, preserving newlines in strings."""
+        indent_str = "  " * indent_level
+        
+        if isinstance(data, dict):
+            if not data:
+                return "{}"
+            lines = ["{"]
+            for key, value in data.items():
+                formatted_key = json.dumps(key)
+                formatted_value = self._pretty_format(value, indent_level + 1)
+                lines.append(f"{indent_str}{formatted_key}: {formatted_value},")
+            
+            if len(lines) > 1 and lines[-1].endswith(","):
+                lines[-1] = lines[-1][:-1]
+                
+            lines.append("  " * (indent_level - 1) + "}")
+            return "\n".join(lines)
+        
+        elif isinstance(data, list):
+            if not data:
+                return "[]"
+            lines = ["["]
+            for item in data:
+                formatted_item = self._pretty_format(item, indent_level + 1)
+                lines.append(f"{indent_str}{formatted_item},")
+            
+            if len(lines) > 1 and lines[-1].endswith(","):
+                lines[-1] = lines[-1][:-1]
+                
+            lines.append("  " * (indent_level - 1) + "]")
+            return "\n".join(lines)
+            
+        elif isinstance(data, str):
+            if '\n' in data:
+                replacement = "\n" + indent_str
+                return '"' + data.replace('\n', replacement) + '"'
+            return json.dumps(data)
+            
+        else:
+            try:
+                return json.dumps(data)
+            except (TypeError, ValueError):
+                return str(data)
+
     def _format_message(self, debug_id: str, message: str, data: Optional[Any] = None) -> str:
         """Formats the log message with a debug ID and optional data."""
         formatted_message = f"[{debug_id}] {message}"
         if data:
-            try:
-                data_str = json.dumps(data, indent=2)
-                formatted_message += f"\n  {data_str}"
-            except TypeError:
-                formatted_message += "\n  [Could not serialize data]"
+            if isinstance(data, str):
+                formatted_message += "\n  " + data.replace('\n', '\n  ')
+            else:
+                try:
+                    # Use custom pretty format instead of standard json.dumps
+                    data_str = self._pretty_format(data)
+                    formatted_message += f"\n  {data_str}"
+                except Exception:
+                    # Fallback if something goes wrong
+                    try:
+                        data_str = json.dumps(data, indent=2)
+                        formatted_message += f"\n  {data_str}"
+                    except TypeError:
+                        formatted_message += "\n  [Could not serialize data]"
         return formatted_message
 
     def _log(self, level: str, debug_id: str, message: str, data: Optional[Any] = None):

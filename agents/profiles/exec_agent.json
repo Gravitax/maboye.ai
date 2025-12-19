@@ -19,14 +19,15 @@
     "write_file"
   ],
   "system_prompt": "Translate task descriptions into precise tool calls using a structured JSON schema.",
-  "max_reasoning_turns": 2,
-  "max_memory_turns": 2,
+  "max_reasoning_turns": 20,
+  "max_memory_turns": 40,
   "specialization_tags": [
     "execution"
   ],
   "llm_config": {
     "temperature": 0,
     "max_tokens": 1000,
-    "timeout": 30
+    "timeout": 30,
+    "response_format": "json"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "TodoListAgent",
+  "name": "TasksAgent",
   "description": "Specialized Task Decomposer.",
   "authorized_tools": [
     "bash",
@@ -29,6 +29,7 @@
   "llm_config": {
     "temperature": 0,
     "max_tokens": 800,
-    "timeout": 30
+    "timeout": 30,
+    "response_format": "json"
   }
 }
