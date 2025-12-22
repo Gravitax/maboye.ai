@@ -32,6 +32,7 @@ class ToolId(str, Enum):
     # Control Flow Tools
     TASK_SUCCESS = "task_success"
     TASK_ERROR = "task_error"
+    TASKS_COMPLETED = "tasks_completed"
     
     # ... potentially other tool IDs
     

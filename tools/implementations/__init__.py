@@ -15,7 +15,8 @@ All tools are registered via register_all_tools() function.
 
 from tools.implementations.control_tools import (
     TaskSuccessTool,
-    TaskErrorTool
+    TaskErrorTool,
+    TasksCompletedTool
 )
 
 from tools.implementations.file_tools import (
@@ -74,7 +75,8 @@ def register_all_tools():
     # System / Control tools (2 tools)
     control_tools = [
         TaskSuccessTool(),
-        TaskErrorTool()
+        TaskErrorTool(),
+        TasksCompletedTool()
     ]
 
     # File operations (7 tools)
@@ -135,6 +137,7 @@ __all__ = [
     # Control tools
     'TaskSuccessTool',
     'TaskErrorTool',
+    'TasksCompletedTool',
     # File tools
     'ReadFileTool',
     'WriteFileTool',

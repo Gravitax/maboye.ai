@@ -5,6 +5,11 @@ Manages conversation context retrieval and message formatting for LLM.
 Serves both orchestrator and agents.
 """
 
+import platform
+import sys
+import os
+import fnmatch
+
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from core.repositories.memory_repository import MemoryRepository
@@ -45,6 +50,7 @@ class ContextManager:
         Returns:
             Formatted time string (hh:mm:ss)
         """
+        return "-"
         try:
             dt = datetime.fromisoformat(timestamp_str)
             return dt.strftime("%H:%M:%S")
@@ -181,12 +187,14 @@ class ContextManager:
             tools_to_display.append(ToolId.TASK_SUCCESS.value)
         if ToolId.TASK_ERROR.value not in tools_to_display:
             tools_to_display.append(ToolId.TASK_ERROR.value)
+        if ToolId.TASKS_COMPLETED.value not in tools_to_display:
+            tools_to_display.append(ToolId.TASKS_COMPLETED.value)
 
         if not tools_to_display:
             return "No tools available."
 
         tool_registry = agent._tool_registry
-        lines = ["\n## AVAILABLE TOOLS"]
+        lines = ["## AVAILABLE TOOLS"]
 
         for tool_name in tools_to_display:
             tool_info = tool_registry.get_tool_info(tool_name)
@@ -217,10 +225,12 @@ class ContextManager:
                         lines.append(f"  - `{p_name}` ({p_type}, {p_req}){default_info}: {p_desc}")
                 
                 # Special note for task_success
+                if tool_name == ToolId.TASKS_COMPLETED.value:
+                    lines.append("NOTE: Use this tool immediately when the **USER QUERY is COMPLETE**.")
                 if tool_name == ToolId.TASK_SUCCESS.value:
-                    lines.append("NOTE: Use this tool immediately when the current task's objective is fully achieved.")
+                    lines.append("NOTE: Use this tool **IMMEDIATELY** when the **CURRENT TASK's OBJECTIVE is FULLY ACHIEVED**.")
                 elif tool_name == ToolId.TASK_ERROR.value:
-                    lines.append("NOTE: Use this tool immediately when an unrecoverable error prevents task completion.")
+                    lines.append("NOTE: Use this tool **IMMEDIATELY** when an unrecoverable **ERROR PREVENTS TASK COMPLETION**.")
 
         return "\n".join(lines)
     
@@ -261,24 +271,169 @@ SPECIAL CASES:
 - If the request requires knowledge retrieval (e.g., "How does auth work?"), create a task to "Inspect code to explain authentication mechanism".
 """
 
+    def get_verification_prompt(self) -> str:
+        return f"""
+VERIFICATION REQUIRED (Check strictly in this order):\n"
+1. **GLOBAL COMPLETION (HIGHEST PRIORITY)**: Look at the output/context. If the evidence shows the **USER QUERY is FULLY ACHIEVED** (regardless of whether the specific command succeeded or failed), use **{ToolId.TASKS_COMPLETED.value}** IMMEDIATELY.
+2. **IMPLICIT SUCCESS (IDEMPOTENCY)**: If the command failed (exit code != 0) BUT the output implies the target state already exists (e.g., 'already exists', 'nothing to change', 'same source/dest'), consider the task done. Use **{ToolId.TASK_SUCCESS.value}**.
+3. **STEP SUCCESS**: If the output confirms the current task's objective is met, use **{ToolId.TASK_SUCCESS.value}**.
+4. **FATAL**: Only use **{ToolId.TASK_ERROR.value}** if the goal is blocked and strictly impossible to achieve.
+        """
+
     def get_execution_system_prompt(self) -> str:
-        return """
+        return f"""
 You are an autonomous execution agent.
-Your goal is to complete the specific task assigned strictly, without deviating using ONLY your available tools.
+Your goal is to complete the specific task assigned, BUT your ultimate priority is the USER QUERY.
 
 EXECUTION RULES:
-1. ANALYSIS: Analyze the current context, the specific 'Expected' outcome of the task, and previous tool outputs.
-2. STRICT SCOPE: Do NOT invent new steps. If asked to \"list files\", ONLY list files. Do NOT read them unless explicitly asked.
-3. VERIFICATION & ERROR HANDLING: Compare the previous tool output against the task's expected outcome.
-   - If the tool output fails to achieve the goal, shows a system error, or clearly contradicts the expected outcome, you MUST use the \"task_error\" tool immediately with a reason.
-4. STOPPING CONDITION: If the previous tool output confirms the requested information or successfully completes the action (matching the expected outcome), you MUST use the \"task_success\" tool immediately.
-5. FORMAT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (like ```json). Do NOT add conversational text.
+1. **PRIORITY 0: GLOBAL SHORT-CIRCUIT**: 
+   Before doing anything, ask: "Is the USER QUERY already fully achieved based on the context/history?"
+   - If YES -> Use **{ToolId.TASKS_COMPLETED.value}** IMMEDIATELY. Ignore the current task.
+   - Do not perform unnecessary actions if the final goal is met.
+2. **ANALYSIS**: Analyze the current context and the specific 'Expected Outcome' of the task.
+3. **OBJECTIVE**: Your goal is the RESULT, not the ACTION. 
+   - If the task asks to "Move X", but X is already there -> Success.
+   - If the task asks to "Create Y", but Y exists -> Success.
+4. **VERIFICATION**: Compare tool outputs against the goal.
+   - Treat "Resource already exists" or "No changes made" as SUCCESS.
+5. **STOPPING CONDITION**: 
+   - Use **{ToolId.TASK_SUCCESS.value}** when the current step is done.
+   - Use **{ToolId.TASKS_COMPLETED.value}** when the User Query is done.
+6. **FORMAT**: Return ONLY the raw JSON object.
 
 JSON SCHEMA:
-{
+{{
   "tool_name": "exact_name_of_the_tool",
-  "arguments": {
-    "arg_name": "value" // Ensure value matches the expected type (int, string, bool)
-  }
-}
+  "arguments": {{
+    "arg_name": "value"
+  }}
+}}
 """
+
+    def get_environment_variables_prompt(self) -> str:
+            """
+            Génère une section listant l'OS, la version Python et les variables d'environnement sûres.
+            """
+
+            lines = ["## ENVIRONMENT CONTEXT"]
+
+            # 1. Informations Système (OS & Python)
+            os_info = f"{platform.system()} {platform.release()} ({platform.machine()})"
+            python_info = f"Python {sys.version.split()[0]}"
+            
+            lines.append("### System Information")
+            lines.append(f"- **OS:** {os_info}")
+            lines.append(f"- **Runtime:** {python_info}")
+            lines.append(f"- **CWD:** {os.getcwd()}") # Current Working Directory est crucial
+
+            # 2. Variables d'environnement (Filtrées)
+            safe_env_vars = ["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"]
+            
+            env_lines = []
+            for key in safe_env_vars:
+                value = os.getenv(key)
+                if value:
+                    # On tronque les valeurs trop longues (ex: PATH) pour économiser des tokens
+                    if len(value) > 200: 
+                        value = value[:197] + "..."
+                    env_lines.append(f"- `{key}`: `{value}`")
+
+            if env_lines:
+                lines.append("\n### Active Environment Variables")
+                lines.extend(env_lines)
+
+            return "\n".join(lines)
+
+    def _get_gitignore_patterns(self) -> list[str]:
+            """
+            Lit et parse le fichier .gitignore local.
+            Retourne une liste de patterns nettoyés.
+            """
+            
+            patterns = []
+            gitignore_path = ".gitignore"
+
+            if not os.path.exists(gitignore_path):
+                return patterns
+
+            try:
+                with open(gitignore_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        # On ignore les lignes vides et les commentaires
+                        if not line or line.startswith("#"):
+                            continue
+                        
+                        # Nettoyage pour faciliter le match avec fnmatch :
+                        # On retire le slash final (ex: "dist/" -> "dist")
+                        # car os.walk retourne les noms de dossiers sans slash.
+                        clean_pattern = line.rstrip("/")
+                        patterns.append(clean_pattern)
+                        
+            except Exception as e:
+                # En cas d'erreur (droits, encodage), on échoue silencieusement
+                # pour ne pas bloquer l'agent.
+                pass
+
+            return patterns
+
+    def get_project_structure_prompt(self) -> str:
+            # 1. Chargement des exclusions
+            # Liste de sécurité (toujours ignorée)
+            ALWAYS_IGNORE = {'.git', '__pycache__', '.idea', '.vscode', '.DS_Store', 'venv', '.venv', '.env'}
+            
+            # Récupération dynamique depuis .gitignore
+            gitignore_patterns = self._get_gitignore_patterns()
+
+            def should_ignore(name):
+                """Vérifie si un fichier/dossier doit être ignoré."""
+                # Vérification rapide (exact match)
+                if name in ALWAYS_IGNORE:
+                    return True
+                
+                # Vérification des patterns .gitignore
+                for pattern in gitignore_patterns:
+                    if fnmatch.fnmatch(name, pattern):
+                        return True
+                return False
+
+            # 2. Construction de l'arbre
+            MAX_DEPTH = 2
+            lines = ["## PROJECT STRUCTURE"]
+            lines.append(f"(Root: {os.getcwd()})")
+
+            start_path = "."
+            
+            for root, dirs, files in os.walk(start_path):
+                level = root.replace(start_path, '').count(os.sep)
+                
+                if level > MAX_DEPTH:
+                    continue
+
+                # Élagage des dossiers ignorés (modification in-place de dirs)
+                # Cela empêche os.walk de descendre inutilement
+                dirs[:] = [d for d in dirs if not d.startswith('.') and not should_ignore(d)]
+                
+                # Affichage du dossier
+                indent = "  " * level
+                folder_name = os.path.basename(root)
+                if folder_name == ".": 
+                    folder_name = "/"
+                
+                lines.append(f"{indent}{folder_name}/")
+                
+                # Affichage des fichiers
+                subindent = "  " * (level + 1)
+                for f in files:
+                    if not f.startswith('.') and not should_ignore(f):
+                        lines.append(f"{subindent}{f}")
+
+            return "\n".join(lines)
+
+    def build_system_prompt(self, agent):
+        parts = [
+            self.get_available_tools_prompt(agent),
+            self.get_environment_variables_prompt(),
+            self.get_project_structure_prompt()
+        ]
+        return "\n\n".join(parts)

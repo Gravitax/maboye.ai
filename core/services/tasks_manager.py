@@ -1,6 +1,7 @@
 from typing import Dict, Any, Tuple, List
 from core.logger import logger
 from agents.types import AgentOutput
+from tools.tool_ids import ToolId
 
 
 class TasksManager:
@@ -66,6 +67,7 @@ class TasksManager:
         Returns:
             AgentOutput
         """
+        tasks_analyse = tasks.get("analyse", "")
         tasks_list = tasks.get("tasks", [])
 
         if not tasks_list or len(tasks_list) == 0:
@@ -75,23 +77,33 @@ class TasksManager:
         tasks_context = ""
 
         for i, task_data in enumerate(tasks_list):
-            # Handle both string (legacy) and dict (new schema) tasks
+            # Handle both string and dict tasks schema
             if isinstance(task_data, dict):
                 step = task_data.get("step", "Unknown step")
                 outcome = task_data.get("expected_outcome", "Unknown outcome")
-                task_description = f"Objective: {step}\nExpected Outcome: {outcome}"
+                task_description = (
+                    f"# CURRENT TASK OBJECTIVE:\n{step}\n"
+                    f"## Expected Outcome:\n{outcome}\n"
+                    f"## USER QUERY:\n{tasks_analyse}"
+                )
             else:
-                task_description = str(task_data)
+                task_description = (
+                    f"# CURRENT TASK OBJECTIVE:\n{task_data}\n"
+                    f"## USER QUERY:\n{tasks_analyse}"
+                )
 
             logger.system("TASKS MANAGER", "task execute", task_description)
 
             result, called_agent = self._execute_task(task_description, tasks_context)
             called_agents.append({"agent_name": called_agent.get_identity().agent_name})
 
+            if result.cmd == ToolId.TASKS_COMPLETED.value:
+                break
+
             # Retrieve full conversation history for this task execution
             if len(tasks_context) > 0: tasks_context = '\n' + tasks_context
-            else: tasks_context = "TASKS REALIZED HISTORY:"
-            tasks_context += f"\nTASK {i+1}: {task_description}\n"
+            else: tasks_context += "\n## TASKS REALIZED HISTORY:"
+            tasks_context += f"\n### TASK {i+1}: {task_description}\n"
             tasks_context += self._context_manager.format_context_as_string(agent_id=called_agent.get_identity().agent_id, max_turns=2)
 
             logger.system("TASKS MANAGER", "task result", result)
@@ -125,8 +137,10 @@ class TasksManager:
         registered_agent = self._agent_repository.find_by_name("ExecAgent")
         agent = self._agent_factory.create_agent(registered_agent)
 
-        system_prompt = self._context_manager.get_execution_system_prompt()
-        system_prompt += '\n' + self._context_manager.get_available_tools_prompt(agent)
+        logger.system("TASKS MANAGER", "aaa")
 
+        system_prompt = self._context_manager.get_execution_system_prompt()
+        system_prompt += self._context_manager.build_system_prompt(agent)
+        logger.system("TASKS MANAGER", "bbb")
         result = agent.run(task=task, system_prompt=system_prompt, user_prompt=tasks_context)
         return result, agent

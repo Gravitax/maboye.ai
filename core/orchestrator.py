@@ -9,6 +9,7 @@ It provides a clean interface for the main application loop to interact with the
 import uuid
 from datetime import datetime
 from typing import Optional, Dict, Any
+import json
 
 from core.logger import logger
 from llm_wrapper import LLMWrapper, LLMWrapperConfig
@@ -131,7 +132,6 @@ class Orchestrator:
                 raise ValueError("TasksAgent not found in repository. Ensure agents are registered before use.")
 
     def _get_tasks_list(self, user_prompt: str, system_prompt: str):
-        import json
 
         self._ensure_tasks_agent_initialized()
 
@@ -181,7 +181,7 @@ class Orchestrator:
             # )
             user_prompt = user_input            
             system_prompt = self._context_manager.get_taskslist_system_prompt()
-            system_prompt += self._context_manager.get_available_tools_prompt(self._tasks_agent)
+            system_prompt += self._context_manager.build_system_prompt(self._tasks_agent)
 
             while executing:
                 try:

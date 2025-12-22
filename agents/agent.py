@@ -130,23 +130,21 @@ class Agent:
                 content=result_str
             )
 
-            if result.cmd == ToolId.TASK_SUCCESS.value or result.cmd == ToolId.TASK_ERROR.value:
+            if result.cmd in [ToolId.TASK_SUCCESS.value, ToolId.TASK_ERROR.value, ToolId.TASKS_COMPLETED.value]:
                 return result
             elif not result.success:
-            # fallback prompt - context is already in memory
+                # Cas d'échec : Gestion de l'Idempotence et de la Récupération
                 user_prompt = (
-                    f"command: {result.cmd} failed. Analyze the failure and execute a corrected approach.\n"
-                    "VERIFICATION REQUIRED:\n"
-                    "1. If the error is strictly syntax-related or a wrong argument, execute a corrected approach.\n"
-                    f"2. If the failure indicates the action is BLOCKED, IMPOSSIBLE, or ALREADY COMPLETED (e.g., 'file exists', 'nothing to do'), you MUST use '{ToolId.TASK_ERROR.value}' to report the specific reason."
+                    f"Command: **{result.cmd} failed**. Analyze the failure context.\n"
+                ) + self._context_manager.get_verification_prompt() + (
+                    "**RECOVERY**: If Global Completion is not met, and it is a fixable error, execute a **Corrected Approach**.\n"
                 )
             else:
+                # Cas de succès technique : Continuité ou Erreur logique
                 user_prompt = (
                     f"Command '{result.cmd}' executed successfully.\n"
-                    "VERIFICATION REQUIRED:\n"
-                    "1. Compare the output strictly against the task's 'expected_outcome'.\n"
-                    f"2. If the output DOES NOT satisfy the expectation, you MUST use '{ToolId.TASK_ERROR.value}' to report the failure.\n"
-                    f"3. If valid, proceed to the next step or use '{ToolId.TASK_SUCCESS.value}' if finished."
+                ) + self._context_manager.get_verification_prompt() + (
+                    "**CONTINUE**: If the USER QUERY is not yet fully complete, proceed to the next logical step.\n"
                 )
         # Max iterations reached
         result.error = "Max iterations reached"

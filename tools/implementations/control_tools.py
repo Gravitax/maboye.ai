@@ -77,3 +77,39 @@ class TaskErrorTool(Tool):
             "status": "error",
             "error_message": error_message
         }
+
+
+class TasksCompletedTool(Tool):
+    """Tool explicitly used to signal that the entire user request is completed"""
+
+    def _define_metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name=ToolId.TASKS_COMPLETED.value,
+            description="Call this when the ENTIRE user query/objective is achieved.",
+            parameters=[
+                ToolParameter(
+                    name="message",
+                    type=str,
+                    description="Final summary of what was achieved",
+                    required=False,
+                    default="All tasks completed successfully."
+                )
+            ],
+            category="system"
+        )
+
+    def execute(self, message: str = "All tasks completed successfully.") -> Dict[str, Any]:
+        """
+        Signals global completion.
+
+        Args:
+            message: Final summary.
+
+        Returns:
+            Dictionary indicating success and status.
+        """
+        return {
+            "success": True,
+            "status": "completed",
+            "message": message
+        }
