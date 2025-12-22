@@ -14,7 +14,8 @@ All tools are registered via register_all_tools() function.
 """
 
 from tools.implementations.control_tools import (
-    TaskCompletedTool
+    TaskSuccessTool,
+    TaskErrorTool
 )
 
 from tools.implementations.file_tools import (
@@ -58,21 +59,22 @@ def register_all_tools():
     Register all tool implementations in global registry
 
     Registers tools from all categories:
-    - 1 system/control tool
+    - 2 system/control tool
     - 7 file operation tools
     - 1 web tool
     - 1 code tool
     - 4 search tools
     - 7 bash and git tools
 
-    Total: 21 tools
+    Total: 22 tools
     """
     from tools.tool_base import register_tool
     from core.logger import logger
 
-    # System / Control tools (1 tool)
+    # System / Control tools (2 tools)
     control_tools = [
-        TaskCompletedTool()
+        TaskSuccessTool(),
+        TaskErrorTool()
     ]
 
     # File operations (7 tools)
@@ -131,7 +133,8 @@ def register_all_tools():
 
 __all__ = [
     # Control tools
-    'TaskCompletedTool',
+    'TaskSuccessTool',
+    'TaskErrorTool',
     # File tools
     'ReadFileTool',
     'WriteFileTool',

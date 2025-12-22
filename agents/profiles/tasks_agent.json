@@ -8,22 +8,17 @@
     "file_info",
     "find_file",
     "get_file_structure",
-    "git_add",
-    "git_commit",
-    "git_diff",
-    "git_log",
-    "git_status",
     "grep",
     "list_files",
     "read_file",
     "write_file"
   ],
-  "system_prompt": "Determine if a query requires multi-step planning and return a structured roadmap or a bypass signal.",
+  "system_prompt": "Analyze the user's request and generate a structured roadmap of actionable tasks for a Developer Agent.",
   "max_reasoning_turns": 1,
   "max_memory_turns": 0,
   "specialization_tags": [
     "planning",
-    "todolist",
+    "taskslist",
     "orchestration"
   ],
   "llm_config": {

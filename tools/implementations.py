@@ -570,6 +570,54 @@ class GitLogTool(Tool):
         return git_ops.git_log(path, max_count, oneline)
 
 
+class TaskSuccessTool(Tool):
+    """Tool to signal that the current task is completed successfully."""
+
+    def _define_metadata(self) -> ToolMetadata:
+        from tools.tool_ids import ToolId # Import here to avoid circular dependency
+        return ToolMetadata(
+            name=ToolId.TASK_SUCCESS.value,
+            description="Signal that the current task is completed successfully and return the final result or message.",
+            parameters=[
+                ToolParameter(
+                    name="message",
+                    type=str,
+                    description="The final message or result upon task completion.",
+                    required=False,
+                    default="Task completed successfully."
+                )
+            ],
+            category="control_flow"
+        )
+
+    def execute(self, message: str = "Task completed successfully.") -> str:
+        return message
+
+
+class TaskErrorTool(Tool):
+    """Tool to signal that the current task has failed."""
+
+    def _define_metadata(self) -> ToolMetadata:
+        from tools.tool_ids import ToolId # Import here to avoid circular dependency
+        return ToolMetadata(
+            name=ToolId.TASK_ERROR.value,
+            description="Signal that the current task has encountered an unrecoverable error.",
+            parameters=[
+                ToolParameter(
+                    name="error_message",
+                    type=str,
+                    description="A detailed message describing the error.",
+                    required=True
+                )
+            ],
+            category="control_flow",
+            dangerous=True # Signalling an error might require careful handling
+        )
+
+    def execute(self, error_message: str) -> str:
+        return f"Task failed: {error_message}"
+
+
 def register_all_tools():
     """Register all tool implementations in global registry"""
     from tools.tool_base import register_tool
@@ -594,3 +642,7 @@ def register_all_tools():
     register_tool(GitCommitTool())
     register_tool(GitDiffTool())
     register_tool(GitLogTool())
+    
+    # Control Flow
+    register_tool(TaskSuccessTool())
+    register_tool(TaskErrorTool())

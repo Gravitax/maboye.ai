@@ -47,8 +47,8 @@ class TaskExecution:
     def __call__(
         self,
         agent: "Agent",
-        task: str,
         system_prompt: str,
+        user_prompt: str,
         max_retries: int = 1
     ) -> AgentOutput:
         """
@@ -57,11 +57,6 @@ class TaskExecution:
         agent_id = agent.get_identity().agent_id
         capabilities = agent.get_capabilities()
 
-        # Enforce JSON instruction for DeepSeek/OpenAI JSON mode
-        if capabilities.llm_response_format == "json":
-            if "json" not in system_prompt.lower():
-                system_prompt += "\n\nIMPORTANT: You must output a valid JSON object."
-
         # Construction du contexte initial
         messages = self._context_manager.build_messages(
             agent_id=agent_id,
@@ -69,17 +64,18 @@ class TaskExecution:
             max_turns=capabilities.max_memory_turns
         )
 
-        if task:
-            messages.append({"role": "user", "content": task})
+        if len(user_prompt) > 0:
+            messages.append({"role": "user", "content": user_prompt})
 
         # Boucle de tentative (Retry Loop) pour corriger les erreurs de syntaxe JSON
         current_retries = 0
         
         while current_retries <= max_retries:
             logger.info("AGENT", "task_attempt", f"Try {current_retries + 1}/{max_retries + 1}")
-            logger.info("AGENT", "input", messages)
+            user_messages = [msg for msg in messages if msg['role'] == "user" or msg['role'] == "assistant"]
+            logger.agent("AGENT", "input", user_messages)
 
-            # 1. Appel LLM
+            # Appel LLM
             llm_response = self._llm.chat(
                 messages,
                 verbose=True,
@@ -99,7 +95,7 @@ class TaskExecution:
 
             content = message.content
             
-            # 2. Parsing de la commande
+            # Parsing de la commande
             tool_command = self._parse_tool_command(content)
 
             # Cas : JSON invalide ou introuvable
@@ -121,11 +117,11 @@ class TaskExecution:
                     return AgentOutput(
                         response=content,
                         success=True,
-                        cmd=ToolId.TASK_COMPLETED.value, # Treat direct response as completion
+                        cmd=ToolId.TASK_SUCCESS.value, # Treat direct response as completion
                         log="Direct text response"
                     )
 
-            # 3. Extraction et Validation
+            # Extraction et Validation
             tool_name = tool_command.get("tool_name")
             arguments = tool_command.get("arguments", {})
 
@@ -135,11 +131,11 @@ class TaskExecution:
                 return AgentOutput(
                     response=json.dumps(tool_command, indent=2), # On renvoie le JSON propre
                     success=True,
-                    cmd=ToolId.TASK_COMPLETED.value,
+                    cmd=ToolId.TASK_SUCCESS.value,
                     log="Structured JSON response received (Plan/Data)."
                 )
 
-            # 4. Vérification de Sécurité
+            # Vérification de Sécurité
             if self._is_dangerous_command(tool_name, arguments):
                 confirmed = self._interaction_handler(tool_name, arguments)
                 if not confirmed:
@@ -150,7 +146,7 @@ class TaskExecution:
                         cmd=tool_name
                     )
 
-            # 5. Exécution de l'outil via le Scheduler
+            # Exécution de l'outil via le Scheduler
             tool_call = ToolCall(
                 id=f"{tool_name}-{agent_id}",
                 name=tool_name,
@@ -171,10 +167,9 @@ class TaskExecution:
                 if isinstance(result_data, dict) and "success" in result_data:
                      command_success = result_data.get("success", True)
 
-                # Gestion spécifique de task_completed
-                # On utilise ToolId pour la comparaison propre
-                if tool_name == ToolId.TASK_COMPLETED.value and command_success:
-                    final_msg = "Task completed."
+                # Gestion spécifique de task_success ou task_error
+                if tool_name == ToolId.TASK_SUCCESS.value and command_success:
+                    final_msg = "Task completed successfully."
                     if isinstance(result_data, dict):
                         final_msg = result_data.get("message", final_msg)
                     elif isinstance(result_data, str):
@@ -183,8 +178,24 @@ class TaskExecution:
                     return AgentOutput(
                         response=final_msg,
                         success=True,
-                        cmd=ToolId.TASK_COMPLETED.value,
+                        cmd=ToolId.TASK_SUCCESS.value,
+                        args=arguments,
                         log="Objective reached via tool execution."
+                    )
+                elif tool_name == ToolId.TASK_ERROR.value:
+                    error_msg = "Task failed as declared by agent."
+                    if isinstance(result_data, dict):
+                        error_msg = result_data.get("error_message", error_msg)
+                    elif isinstance(result_data, str):
+                        error_msg = result_data
+
+                    return AgentOutput(
+                        response=error_msg,
+                        success=False,
+                        error="agent_declared_error",
+                        cmd=ToolId.TASK_ERROR.value,
+                        args=arguments,
+                        log=f"Agent declared task error: {error_msg}"
                     )
 
                 # Conversion du résultat en string pour l'AgentOutput si c'est un dict
@@ -194,7 +205,8 @@ class TaskExecution:
                     response=response_str,
                     success=command_success,
                     cmd=tool_name,
-                    log=f"Tool executed. Success: {command_success}"
+                    args=arguments,
+                    log=f"Tool {tool_name} executed. Success: {command_success}"
                 )
 
             except Exception as e:

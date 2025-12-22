@@ -2,6 +2,7 @@
 Chat route for the LLM wrapper.
 """
 from typing import List, Union, Optional
+from core.logger import logger
 from ..types import Message, ChatResponse
 
 
@@ -35,6 +36,7 @@ def chat(
     """
     self._authenticate()
     url = self.request_builder.build_chat_url(self.config)
+
     request = self.request_builder.build_chat_request(
         messages, self.config, temperature, max_tokens, response_format, stream
     )

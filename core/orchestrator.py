@@ -159,6 +159,8 @@ class Orchestrator:
         Returns:
             AgentOutput
         """
+
+        logger.info("ORCHESTRATOR", "process_user_input", user_input)
         # Generate unique conversation ID
         conversation_id = f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
         # Save user input in orchestrator memory

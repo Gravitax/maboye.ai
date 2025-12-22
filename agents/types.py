@@ -59,6 +59,7 @@ class AgentOutput(BaseModel):
     agent_id: Optional[str] = None
     cmd: Optional[str] = None
     log: Optional[str] = None
+    args: Optional[Dict[str, Any]] = None
 
 
 # Expose all types for clear imports

@@ -72,15 +72,33 @@ class TasksManager:
             return self._execute_direct(user_prompt)
 
         called_agents = []
+        tasks_context = ""
 
-        for i, task_description in enumerate(tasks_list):
+        for i, task_data in enumerate(tasks_list):
+            # Handle both string (legacy) and dict (new schema) tasks
+            if isinstance(task_data, dict):
+                step = task_data.get("step", "Unknown step")
+                outcome = task_data.get("expected_outcome", "Unknown outcome")
+                task_description = f"Objective: {step}\nExpected Outcome: {outcome}"
+            else:
+                task_description = str(task_data)
 
-            result, called_agent = self._execute_task(task_description)
-            called_agents.append(called_agent)
+            logger.system("TASKS MANAGER", "task execute", task_description)
+
+            result, called_agent = self._execute_task(task_description, tasks_context)
+            called_agents.append({"agent_name": called_agent.get_identity().agent_name})
+
+            # Retrieve full conversation history for this task execution
+            if len(tasks_context) > 0: tasks_context = '\n' + tasks_context
+            else: tasks_context = "TASKS REALIZED HISTORY:"
+            tasks_context += f"\nTASK {i+1}: {task_description}\n"
+            tasks_context += self._context_manager.format_context_as_string(agent_id=called_agent.get_identity().agent_id, max_turns=2)
+
+            logger.system("TASKS MANAGER", "task result", result)
 
             if not result.success:
                 return AgentOutput(
-                    response=f"Execution failed at step {i}: {result.error}",
+                    response=f"Execution failed at step {i+1}: {result.error}\n\nContext:\n{tasks_context}",
                     success=False,
                     error=f"task_{i}_failed",
                     agent_id="autonomous_workflow",
@@ -94,7 +112,7 @@ class TasksManager:
             metadata={"called_agents": called_agents}
         )
 
-    def _execute_task(self, task: str) -> AgentOutput:
+    def _execute_task(self, task: str, tasks_context: str) -> Tuple[AgentOutput, Any]:
         """
         Execute single task with specialized agent.
 
@@ -102,13 +120,13 @@ class TasksManager:
             task: Task description to execute
 
         Returns:
-            Tuple of (AgentOutput, agent_metadata)
+            Tuple of (AgentOutput, Agent)
         """
         registered_agent = self._agent_repository.find_by_name("ExecAgent")
         agent = self._agent_factory.create_agent(registered_agent)
 
         system_prompt = self._context_manager.get_execution_system_prompt()
-        system_prompt += "\n\n" + self._context_manager.get_available_tools_prompt(agent)
+        system_prompt += '\n' + self._context_manager.get_available_tools_prompt(agent)
 
-        result = agent.run(task=task, system_prompt=system_prompt)
-        return result, {"agent_name": agent._identity.agent_name}
+        result = agent.run(task=task, system_prompt=system_prompt, user_prompt=tasks_context)
+        return result, agent

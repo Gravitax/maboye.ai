@@ -50,21 +50,26 @@ class RequestSender:
                 headers=headers,
                 timeout=config.timeout
             )
+
             response.raise_for_status()
 
             data = response.json()
             return ChatResponse(**data)
 
         except requests.ConnectionError as error:
+            logger.error("LLM_CLIENT", "Connection Error", str(error))
             raise LLMWrapperError(f"Connection failed: {error}")
 
         except requests.Timeout as error:
+            logger.error("LLM_CLIENT", "Timeout Error", str(error))
             raise LLMWrapperError(f"Timeout after {config.timeout}s: {error}")
 
         except requests.HTTPError as error:
+            logger.error("LLM_CLIENT", "HTTP Error", {"status": response.status_code, "error": str(error), "content": response.text[:200]})
             raise LLMWrapperError(f"HTTP {response.status_code}: {error}")
 
         except Exception as error:
+            logger.error("LLM_CLIENT", "Unknown Error", str(error))
             raise LLMWrapperError(f"Request failed: {error}")
 
     def send_get_request(

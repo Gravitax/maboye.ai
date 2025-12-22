@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from core.repositories.memory_repository import MemoryRepository
 from core.logger import logger
+from tools.tool_ids import ToolId
 
 
 class ContextManager:
@@ -144,10 +145,10 @@ class ContextManager:
         if not turns:
             return ""
 
-        lines = ["History:"]
+        lines = []
         for turn in turns:
             role = turn.get("role", "unknown")
-            content = turn.get("content", "")[:150]
+            content = turn.get("content", "")
             timestamp = turn.get("timestamp", "")
             time_str = self._format_timestamp(timestamp) if timestamp else "00:00:00"
 
@@ -171,14 +172,23 @@ class ContextManager:
         """
         Génère une description riche des outils incluant types et descriptions des arguments.
         """
-        authorized_tools = agent._capabilities.authorized_tools
-        if not authorized_tools:
+        # Create a list copy to safely modify
+        tools_to_display = list(agent._capabilities.authorized_tools) if agent._capabilities.authorized_tools else []
+        
+        
+        # Ensure task_success and task_error are always displayed
+        if ToolId.TASK_SUCCESS.value not in tools_to_display:
+            tools_to_display.append(ToolId.TASK_SUCCESS.value)
+        if ToolId.TASK_ERROR.value not in tools_to_display:
+            tools_to_display.append(ToolId.TASK_ERROR.value)
+
+        if not tools_to_display:
             return "No tools available."
 
         tool_registry = agent._tool_registry
         lines = ["\n## AVAILABLE TOOLS"]
 
-        for tool_name in authorized_tools:
+        for tool_name in tools_to_display:
             tool_info = tool_registry.get_tool_info(tool_name)
             if tool_info:
                 # Titre et description de l'outil
@@ -204,7 +214,14 @@ class ContextManager:
                         if 'default' in param and not param.get('required'):
                             default_info = f" (default: {param['default']})"
 
-                        lines.append(f"  - `{p_name}` ({p_type}, {p_req}){default_info}: {p_desc}")    
+                        lines.append(f"  - `{p_name}` ({p_type}, {p_req}){default_info}: {p_desc}")
+                
+                # Special note for task_success
+                if tool_name == ToolId.TASK_SUCCESS.value:
+                    lines.append("NOTE: Use this tool immediately when the current task's objective is fully achieved.")
+                elif tool_name == ToolId.TASK_ERROR.value:
+                    lines.append("NOTE: Use this tool immediately when an unrecoverable error prevents task completion.")
+
         return "\n".join(lines)
     
     def get_taskslist_system_prompt(self) -> str:
@@ -221,8 +238,14 @@ JSON SCHEMA:
 {
   "analyse": "Brief technical analysis of the request and context.",
   "tasks": [
-    "Step 1: specific objective",
-    "Step 2: specific objective"
+    {
+      "step": "Clear and specific action to perform.",
+      "expected_outcome": "Concrete condition or result that must be met to consider this step complete and enable the next."
+    },
+    {
+      "step": "Next action...",
+      "expected_outcome": "Result..."
+    }
   ]
 }
 
@@ -231,6 +254,7 @@ TASK GUIDELINES:
 - SEQUENCE: Order tasks logically (Investigation -> Modification -> Verification).
 - SCOPE: Do NOT specify exact tool calls (e.g., do not say "use read_file tool"), just state the GOAL. The Developer Agent will choose the tools.
 - CONTEXT: If the user refers to specific files, mention them explicitly in the tasks.
+- OUTCOMES: The `expected_outcome` must be verifiable (e.g., \"File path is confirmed\" is better than \"Know where the file is\").
 
 SPECIAL CASES:
 - If the request is a simple greeting or pure conversation unrelated to code/system, return an EMPTY list `[]` for "tasks".
@@ -240,13 +264,15 @@ SPECIAL CASES:
     def get_execution_system_prompt(self) -> str:
         return """
 You are an autonomous execution agent.
-Your goal is to complete the specific task assigned strictly, without deviating.
+Your goal is to complete the specific task assigned strictly, without deviating using ONLY your available tools.
 
 EXECUTION RULES:
-1. Analyze the current context and previous tool outputs.
-2. STRICT SCOPE: Do NOT invent new steps. If asked to "list files", ONLY list files. Do NOT read them unless explicitly asked.
-3. STOPPING CONDITION: If the previous tool output contains the requested information or completes the action, you MUST use the "task_completed" tool immediately.
-4. FORMAT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (like ```json). Do NOT add conversational text.
+1. ANALYSIS: Analyze the current context, the specific 'Expected' outcome of the task, and previous tool outputs.
+2. STRICT SCOPE: Do NOT invent new steps. If asked to \"list files\", ONLY list files. Do NOT read them unless explicitly asked.
+3. VERIFICATION & ERROR HANDLING: Compare the previous tool output against the task's expected outcome.
+   - If the tool output fails to achieve the goal, shows a system error, or clearly contradicts the expected outcome, you MUST use the \"task_error\" tool immediately with a reason.
+4. STOPPING CONDITION: If the previous tool output confirms the requested information or successfully completes the action (matching the expected outcome), you MUST use the \"task_success\" tool immediately.
+5. FORMAT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (like ```json). Do NOT add conversational text.
 
 JSON SCHEMA:
 {

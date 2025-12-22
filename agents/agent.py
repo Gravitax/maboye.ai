@@ -14,6 +14,7 @@ from core.services.memory_manager import MemoryManager
 from core.services.context_manager import ContextManager
 from agents.task_execution import TaskExecution
 from agents.types import AgentOutput
+from tools.tool_ids import ToolId
 
 
 class Agent:
@@ -22,8 +23,8 @@ class Agent:
 
     Workflow:
     1. Execute single command via TaskExecution
-    2. Check command result (task_completed, continue, error)
-    3. Repeat until task completed or max iterations reached
+    2. Check command result (task_success, continue, error)
+    3. Repeat until task success, error or max iterations reached
 
     The task execution coordinator handles:
     - Querying LLM for next command
@@ -58,7 +59,7 @@ class Agent:
             context_manager=self._context_manager
         )
 
-    def run(self, task: str, system_prompt: str = "") -> AgentOutput:
+    def run(self, task: str, system_prompt: str = "", user_prompt: str = "") -> AgentOutput:
         """
         Execute agent with iterative task execution workflow.
 
@@ -74,10 +75,12 @@ class Agent:
 
         # Build system prompt
         if len(system_prompt) > 0:
-            system_prompt = self._capabilities.system_prompt + "\n\n" + system_prompt
+            system_prompt = self._capabilities.system_prompt + '\n' + system_prompt
         else:
             system_prompt = self._capabilities.system_prompt
-        system_prompt += f"\nYour task is {task}."
+        # Build user prompt
+        if len(user_prompt) > 0: user_prompt = '\n' + user_prompt
+        user_prompt = task + user_prompt
 
         # Clear agent memory
         self._memory_manager.clear_agent_memory(self._identity.agent_id)
@@ -101,41 +104,49 @@ class Agent:
             # Execute single command
             result = self._task_execution(
                 agent=self,
-                task=task,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
+                user_prompt=user_prompt
             )
 
-            logger.info("AGENT", "output", {
-                "cmd": result.cmd,
-                "result": result.response,
-                "log": result.log
-            })
+            result_str = f"command: {result.cmd}\narguments: {result.args}\noutput: {result.response}\nsuccess: {result.success}"
+            logger.agent("AGENT", "output", result_str)
 
-            # Save both agent input and output in memory
+            # On prépare le contenu pour la mémoire en retirant les instructions de vérification
+            # qui ne servent qu'au LLM pour l'étape suivante, mais polluent l'historique.
+            memory_content = user_prompt
+            split_marker = "VERIFICATION REQUIRED"
+            # On ne garde que la partie avant le marqueur (ex: "Command 'ls' executed successfully.")
+            memory_content = user_prompt.split(split_marker)[0].strip()
+
+            # Save both agent input (cleaned) and output in memory
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="user",
-                content=task
+                content=memory_content
             )
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="assistant",
-                content=f"executed command: {result.cmd}\noutput: {result.response}\nsuccess: {result.success}"
+                content=result_str
             )
 
-            if result.cmd == "task_completed":
+            if result.cmd == ToolId.TASK_SUCCESS.value or result.cmd == ToolId.TASK_ERROR.value:
                 return result
             elif not result.success:
             # fallback prompt - context is already in memory
-                task = (
-                    f"The command '{result.cmd}' failed.\n"
-                    f"Error logs:\n{result.log}\n\n"
-                    "Analyze the failure and execute a corrected approach."
+                user_prompt = (
+                    f"command: {result.cmd} failed. Analyze the failure and execute a corrected approach.\n"
+                    "VERIFICATION REQUIRED:\n"
+                    "1. If the error is strictly syntax-related or a wrong argument, execute a corrected approach.\n"
+                    f"2. If the failure indicates the action is BLOCKED, IMPOSSIBLE, or ALREADY COMPLETED (e.g., 'file exists', 'nothing to do'), you MUST use '{ToolId.TASK_ERROR.value}' to report the specific reason."
                 )
             else:
-                task = (
-                    f"The command '{result.cmd}' succeeded.\n"
-                    "Determine the next logical step or use 'task_completed' if finished."
+                user_prompt = (
+                    f"Command '{result.cmd}' executed successfully.\n"
+                    "VERIFICATION REQUIRED:\n"
+                    "1. Compare the output strictly against the task's 'expected_outcome'.\n"
+                    f"2. If the output DOES NOT satisfy the expectation, you MUST use '{ToolId.TASK_ERROR.value}' to report the failure.\n"
+                    f"3. If valid, proceed to the next step or use '{ToolId.TASK_SUCCESS.value}' if finished."
                 )
         # Max iterations reached
         result.error = "Max iterations reached"

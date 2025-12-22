@@ -317,7 +317,8 @@ class ToolRegistry:
         """
         tool = self.get_tool(tool_name)
         if not tool:
-            raise ToolError(f"Tool not found: {tool_name}")
+            available = list(self._tools.keys())
+            raise ToolError(f"Tool '{tool_name}' not found. Available tools: {available}")
 
         return tool.run(**kwargs)
 
