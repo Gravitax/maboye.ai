@@ -1,0 +1,14 @@
+{
+    "model": "deepseek-chat",
+    "api_service": "chat/completions",
+    "fim_service": "beta/completions",
+    "models_service": "models",
+    "balance_service": "user/balance",
+    "auth_service": "api/v1/auths/signin",
+    "auth_enabled": false,
+    "temperature": 0.0,
+    "max_tokens": 4000,
+    "timeout": 60,
+    "stream": false,
+    "use_payload_wrapper": false
+}

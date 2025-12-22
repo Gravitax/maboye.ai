@@ -1,21 +1,13 @@
-# Tools Module
+# Tool System
 
-This module defines and provides the various tools that agents can utilize to interact with the environment, such as file system operations, Git commands, search functionalities, and shell execution.
+## Synthesis
 
-## File Structure
+The `tools` module provides a standardized, extensible interface for agents to interact with the external environment. It relies on the `Tool` abstract base class, which enforces a strict contract for parameter validation, metadata definition, and execution logic. A central `ToolRegistry` manages the discovery and instantiation of tools, allowing agents to dynamically access capabilities like file manipulation, high-performance code search (ripgrep), shell command execution, and version control operations. Security is enforced via metadata flags (e.g., `dangerous=True`) and input validation layers.
 
-- `file_ops.py`: Defines tools specifically for file system operations, including reading, writing, and managing files.
+## Component Description
 
-- `git_ops.py`: Contains tools for interacting with Git repositories, such as checking status, performing diffs, and committing changes.
-
-- `implementations.py`: This module acts as a central point for registering or providing access to concrete tool implementations, potentially aggregating them from the `implementations/` subdirectory.
-
-- `search.py`: Provides tools for searching within files and directories.
-
-- `shell.py`: Defines a tool for executing arbitrary shell commands.
-
-- `tool_base.py`: Contains the abstract base class or interface from which all specific tools inherit, ensuring a consistent structure and API for tool development.
-
-- `tool_ids.py`: Defines unique identifiers or enums for all available tools, used for referencing and managing tools programmatically.
-
-- `implementations/`: A subdirectory containing concrete implementations of various tools, organized by their function.
+*   **`tool_base.py`**: Defines the core architecture, including the `Tool` abstract base class, `ToolMetadata` data structure, and the `ToolRegistry` for managing tool lifecycle and lookup.
+*   **`implementations.py`**: Adapts raw functional logic into concrete `Tool` subclasses (e.g., `ReadFileTool`, `GitStatusTool`), mapping agent inputs to backend operations.
+*   **`tool_ids.py`**: Contains constants and enumerations for stable tool identification across the system.
+*   **`file_ops.py` / `search.py` / `shell.py` / `git_ops.py`**: Standalone modules implementing the actual low-level operations. These are decoupled from the agent interface to allow direct usage where appropriate.
+*   **`implementations/`**: A subdirectory containing specific tool categories and their logic.

@@ -28,7 +28,8 @@ class RequestSender:
         url: str,
         request: ChatRequest,
         session: requests.Session,
-        config: LLMWrapperConfig
+        config: LLMWrapperConfig,
+        headers: Dict[str, str] = None
     ) -> ChatResponse:
         """
         Send chat request to API endpoint.
@@ -38,12 +39,7 @@ class RequestSender:
             request: Chat request object
             session: Requests session
             config: LLM configuration
-
-        Returns:
-            ChatResponse from API
-
-        Raises:
-            LLMWrapperError: If request fails
+            headers: Optional headers to include
         """
         try:
             request_payload = request.model_dump(exclude_none=True)
@@ -51,6 +47,7 @@ class RequestSender:
             response = session.post(
                 url,
                 json=request_payload,
+                headers=headers,
                 timeout=config.timeout
             )
             response.raise_for_status()
@@ -74,24 +71,14 @@ class RequestSender:
         self,
         url: str,
         session: requests.Session,
-        config: LLMWrapperConfig
+        config: LLMWrapperConfig,
+        headers: Dict[str, str] = None
     ) -> Dict[str, Any]:
         """
         Send GET request to API endpoint.
-
-        Args:
-            url: API endpoint URL
-            session: Requests session
-            config: LLM configuration
-
-        Returns:
-            JSON response as dictionary
-
-        Raises:
-            LLMWrapperError: If request fails
         """
         try:
-            response = session.get(url, timeout=config.timeout)
+            response = session.get(url, headers=headers, timeout=config.timeout)
             response.raise_for_status()
             return response.json()
 
@@ -112,27 +99,17 @@ class RequestSender:
         url: str,
         payload: Dict[str, Any],
         session: requests.Session,
-        config: LLMWrapperConfig
+        config: LLMWrapperConfig,
+        headers: Dict[str, str] = None
     ) -> Dict[str, Any]:
         """
         Send POST request with JSON payload.
-
-        Args:
-            url: API endpoint URL
-            payload: JSON payload
-            session: Requests session
-            config: LLM configuration
-
-        Returns:
-            JSON response as dictionary
-
-        Raises:
-            LLMWrapperError: If request fails
         """
         try:
             response = session.post(
                 url,
                 json=payload,
+                headers=headers,
                 timeout=config.timeout
             )
             response.raise_for_status()

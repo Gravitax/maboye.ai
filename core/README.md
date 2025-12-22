@@ -1,19 +1,14 @@
-# Core Module
+# Core System
 
-This module represents the central part of the application, encompassing the foundational components for orchestration, logging, and managing interactions between different parts of the system, including agents, tools, and LLMs.
+## Synthesis
 
-## File Structure
+The `core` module establishes the foundational architecture for the agent system, orchestrating the interaction between various components to enable autonomous agent behavior. It encapsulates core domain models, manages data persistence through abstract and in-memory repositories, and implements essential services for memory management, context building, and task execution. The `Orchestrator` acts as the central coordinator, responsible for initializing and connecting all other core components—including the LLM wrapper, Tool Scheduler, and specialized agent factories—thus providing a unified interface for managing complex agent workflows and maintaining conversational state.
 
-- `logger.py`: Configures and provides a standardized logging mechanism for the entire application, ensuring consistent output for debugging and monitoring.
+## Component Description
 
-- `orchestrator.py`: Contains the main application orchestrator, responsible for managing the overall flow, coordinating tasks, and directing interactions between agents, tools, and the LLM.
-
-- `tool_scheduler.py`: Manages the scheduling and execution of tools, ensuring that tool calls are processed efficiently and in the correct order.
-
-- `domain/`: A subdirectory defining the core business entities, data models, and foundational concepts of the application.
-
-- `llm_wrapper/`: A subdirectory containing components for interacting with Large Language Models, abstracting the specifics of LLM providers.
-
-- `repositories/`: A subdirectory providing interfaces and implementations for data persistence and retrieval for various application entities.
-
-- `services/`: A subdirectory housing the application's business logic, coordinating domain entities and repositories to fulfill specific tasks.
+*   **`orchestrator.py`**: The central coordinator responsible for setting up, initializing, and managing the lifecycle of all other core modules (LLM, Memory, Tools, Agents). It directs the overall agent workflow, from processing user input to task delegation and result aggregation.
+*   **`tool_scheduler.py`**: Manages the execution of tools. It receives tool call requests, validates arguments against defined tool metadata, handles type coercion for LLM outputs, executes the tools via the `ToolRegistry`, and captures results or errors.
+*   **`logger.py`**: Provides a standardized logging utility for the entire application, enabling structured and categorized output for debugging and monitoring.
+*   **`domain/`**: This subdirectory contains the fundamental business entities and value objects, such as `AgentIdentity` (defining an agent's unique attributes), `AgentCapabilities`, and `ConversationContext`, which model the system's core concepts.
+*   **`repositories/`**: Houses abstract interfaces (e.g., `AgentRepository`, `MemoryRepository`) and their in-memory implementations (e.g., `InMemoryAgentRepository`) for data persistence. They define the contract for storing and retrieving domain objects.
+*   **`services/`**: Contains various service classes that encapsulate business logic and coordinate interactions between domain objects and repositories. Examples include `MemoryManager` (handling caching and memory isolation), `ContextManager` (building LLM prompts), `AgentFactory` (creating agent instances), and `TasksManager` (managing multi-step tasks).

@@ -6,6 +6,11 @@
 
 set -e # Exit on error
 
+# --- Configuration URLs ---
+URL_TO_SET_LOCAL="http://127.0.0.1:8000"
+URL_TO_SET_ONLINE="https://api.deepseek.com" # Or "https://192.168.239.20" for local Mistral/vLLM
+# --------------------------
+
 # --- Argument Parsing ---
 START_BACKEND=false
 for arg in "$@"; do
@@ -58,7 +63,7 @@ fi
 
 # --- Conditional Backend Setup & Start ---
 if [ "$START_BACKEND" = true ]; then
-  URL_TO_SET="http://127.0.0.1:8000"
+  URL_TO_SET="$URL_TO_SET_LOCAL"
 
   # Install backend requirements
   if [ -f "$BACKEND_DIR/requirements.txt" ]; then
@@ -99,7 +104,7 @@ if [ "$START_BACKEND" = true ]; then
     exit 1
   fi
 else
-  URL_TO_SET="https://192.168.239.20"
+  URL_TO_SET="$URL_TO_SET_ONLINE"
   echo "Skipping backend startup. Use './start.sh --backend' to start it."
 fi
 # ------------------------------------------
@@ -113,7 +118,7 @@ if [ ! -f "$ENV_FILE" ] && [ -f "$ENV_FILE.example" ]; then
 fi
 
 # Delete all existing LLM_BASE_URL lines (commented or not)
-if [ -f "$ENV_FILE" ]; then
+if [ ! -z "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
     sed -i '/^#\? *LLM_BASE_URL=/d' "$ENV_FILE"
 fi
 
@@ -142,13 +147,4 @@ cleanup() {
     # Force kill if still alive
     if ps -p $BACKEND_PID >/dev/null 2>&1; then
       kill -9 $BACKEND_PID 2>/dev/null || true
-    fi
-  fi
-
-  # Return to original directory
-  cd "$ORIGINAL_DIR"
-  echo "Returned to: $(pwd)"
-}
-
-# Register cleanup on exit
-trap cleanup EXIT INT TERM
+    F

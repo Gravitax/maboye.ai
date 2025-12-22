@@ -1,14 +1,14 @@
-# CLI Module
+# CLI System
 
-This module is responsible for handling the command-line interface (CLI) interactions of the application.
-It provides utilities for parsing commands, managing their execution, and interacting with the terminal.
+## Synthesis
 
-## File Structure
+The `cli` module implements the application's interactive command-line interface, serving as the primary bridge between the user and the agent orchestration system. It features a robust event loop managed by the `Terminal` class, which handles user input, signal processing (interrupts/EOF), and output formatting. The system distinguishes between internal application commands (prefixed with `/`) and system shell commands. It leverages `readline` for enhanced usability features like command history, navigation, and context-aware tab completion.
 
-- `cli_utils.py`: Contains various utility functions that support CLI operations, such as input parsing, output formatting, and interactive prompts.
+## Component Description
 
-- `command_manager.py`: Manages the registration, discovery, and execution flow of all available CLI commands. It acts as the central dispatcher for user commands.
-
-- `terminal.py`: Handles low-level terminal interactions, including displaying output, reading user input, and managing terminal state.
-
-- `commands/`: A subdirectory containing the implementation of individual CLI commands. Each file in this directory defines a specific command's logic.
+*   **`terminal.py`**: The core driver of the CLI. It manages the run loop, processes raw input, displays the prompt, and handles terminal signal events.
+*   **`command_manager.py`**: Responsible for parsing, registering, and routing internal commands (e.g., `/help`, `/tools`) to their respective handlers.
+*   **`system_command_manager.py`**: Detects and executes standard system shell commands (e.g., `ls`, `cd`) directly from the CLI prompt.
+*   **`completer.py`**: Implements custom tab-completion logic, offering suggestions for both internal commands and file system paths.
+*   **`cli_utils.py`**: Provides utility functions for terminal output, including ANSI color codes and text formatting helpers.
+*   **`commands/`**: A directory containing the implementation logic for specific CLI commands.

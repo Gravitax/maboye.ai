@@ -57,6 +57,11 @@ class TaskExecution:
         agent_id = agent.get_identity().agent_id
         capabilities = agent.get_capabilities()
 
+        # Enforce JSON instruction for DeepSeek/OpenAI JSON mode
+        if capabilities.llm_response_format == "json":
+            if "json" not in system_prompt.lower():
+                system_prompt += "\n\nIMPORTANT: You must output a valid JSON object."
+
         # Construction du contexte initial
         messages = self._context_manager.build_messages(
             agent_id=agent_id,
@@ -103,6 +108,7 @@ class TaskExecution:
                 # Mais si le modèle *essayait* de faire du JSON (détecté par accolades), on retry
                 if "{" in content and "}" in content:
                     error_msg = "Invalid JSON format. Return ONLY raw JSON."
+                    logger.warning("AGENT", "LLM_RAW_OUTPUT_FAILED_PARSE", {"raw_output": content})
                     logger.warning("AGENT", "json_parse_error", "Retrying...")
                     
                     # On ajoute l'erreur au contexte temporaire pour que le LLM se corrige
@@ -122,6 +128,16 @@ class TaskExecution:
             # 3. Extraction et Validation
             tool_name = tool_command.get("tool_name")
             arguments = tool_command.get("arguments", {})
+
+            # Si on a du JSON valide mais pas de tool_name, c'est une réponse structurée (ex: Plan)
+            # On considère ça comme un succès conversationnel/données.
+            if not tool_name:
+                return AgentOutput(
+                    response=json.dumps(tool_command, indent=2), # On renvoie le JSON propre
+                    success=True,
+                    cmd=ToolId.TASK_COMPLETED.value,
+                    log="Structured JSON response received (Plan/Data)."
+                )
 
             # 4. Vérification de Sécurité
             if self._is_dangerous_command(tool_name, arguments):
@@ -221,6 +237,12 @@ class TaskExecution:
                         "tool_name": data["function"]["name"],
                         "arguments": json.loads(data["function"]["arguments"]) if isinstance(data["function"]["arguments"], str) else data["function"]["arguments"]
                     }
+                
+                # Si c'est un JSON valide mais pas une commande d'outil explicite
+                # (ex: le plan du TasksAgent), on le retourne tel quel.
+                # L'appelant décidera si c'est valide ou non.
+                return data
+
             return None
         except Exception:
             return None

@@ -12,13 +12,17 @@ def authenticate(self) -> None:
     Raises:
         LLMWrapperError: Authentication failed
     """
+    # Skip if authentication is disabled (e.g. for standard OpenAI/DeepSeek usage)
+    if not self.config.auth_enabled:
+        return
+
     if self.token:
         return
 
     if not self.config.email or not self.config.password:
         return
 
-    url = f"{self.config.base_url}/api/v1/auths/signin"
+    url = f"{self.config.base_url}/{self.config.auth_service}"
     payload = {
         "email": self.config.email,
         "password": self.config.password

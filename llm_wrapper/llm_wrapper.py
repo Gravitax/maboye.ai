@@ -9,10 +9,10 @@ from typing import Optional, Union, List, Dict
 import requests
 
 from core.logger import logger
-from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse
+from .types import Message, ChatResponse, ModelsResponse, EmbeddingResponse, FimResponse, BalanceResponse
 from .config import LLMWrapperConfig
 from .client import RequestBuilder, RequestSender, ResponseHandler
-from .routes import auth, chat, embedding, models
+from .routes import auth, chat, embedding, models, fim, user
 
 
 class LLMWrapper:
@@ -32,7 +32,6 @@ class LLMWrapper:
         """
         self.config = config or LLMWrapperConfig()
         self.session = requests.Session()
-        self.session.verify = False
         self.token: Optional[str] = None
 
         # Initialize client components
@@ -104,6 +103,29 @@ class LLMWrapper:
             EmbeddingResponse with embeddings
         """
         return embedding.embedding(self, input_texts)
+
+    def fim_completion(self, prompt: str, suffix: str, max_tokens: int = 128) -> FimResponse:
+        """
+        Perform Code Fill-In-the-Middle (FIM).
+
+        Args:
+            prompt: Code preceding the cursor
+            suffix: Code following the cursor
+            max_tokens: Max generated tokens
+
+        Returns:
+            FimResponse
+        """
+        return fim.fim_completion(self, prompt, suffix, max_tokens)
+
+    def get_balance(self) -> BalanceResponse:
+        """
+        Get user account balance.
+
+        Returns:
+            BalanceResponse
+        """
+        return user.get_balance(self)
 
     def list_models(self) -> ModelsResponse:
         """

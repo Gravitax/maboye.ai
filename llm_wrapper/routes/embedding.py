@@ -21,8 +21,12 @@ def embedding(self, input_texts: List[str]) -> EmbeddingResponse:
     self._authenticate()
     url = self.request_builder.build_embedding_url(self.config)
     request = self.request_builder.build_embedding_request(input_texts, self.config)
-    payload = request.model_dump(exclude_none=True)
-    data = self.request_sender.send_post_request(url, payload, self.session, self.config)
+    headers = self.request_builder.build_headers(self.token, self.config.api_key)
+    
+    # Using send_post_request directly as it matches the signature
+    data = self.request_sender.send_post_request(
+        url, request.model_dump(), self.session, self.config, headers=headers
+    )
     return EmbeddingResponse(**data)
 
 
@@ -32,11 +36,12 @@ def list_embedding_models(self) -> ModelsResponse:
 
     Returns:
         Models response with available models
-
-    Raises:
-        LLMWrapperError: Request failed
     """
     self._authenticate()
     url = self.request_builder.build_embedding_models_url(self.config)
-    data = self.request_sender.send_get_request(url, self.session, self.config)
+    headers = self.request_builder.build_headers(self.token, self.config.api_key)
+    
+    data = self.request_sender.send_get_request(
+        url, self.session, self.config, headers=headers
+    )
     return ModelsResponse(**data)

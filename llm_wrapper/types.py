@@ -30,6 +30,7 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1000, ge=1)
     response_format: Optional[Dict[str, str]] = None
+    stream: Optional[bool] = None
 
 
 class Usage(BaseModel):
@@ -86,8 +87,31 @@ class EmbeddingData(BaseModel):
 
 
 class EmbeddingResponse(BaseModel):
-    """Response from embedding."""
-    object: str
+    """Response from embedding request."""
+    object: str = "list"
     data: List[EmbeddingData]
     model: str
-    usage: Optional[Usage] = None
+    usage: Usage
+
+
+class FimResponse(BaseModel):
+    """Response from Fill-In-the-Middle (Beta) completion."""
+    id: str
+    object: str = "text_completion"
+    created: int
+    model: str
+    choices: List[Dict[str, Any]]
+    usage: Usage
+
+
+class BalanceInfo(BaseModel):
+    currency: str
+    total_balance: str
+    granted_balance: str
+    topped_up_balance: str
+
+
+class BalanceResponse(BaseModel):
+    """Response from user balance endpoint."""
+    is_available: bool
+    balance_infos: List[BalanceInfo]

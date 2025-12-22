@@ -11,7 +11,8 @@ def chat(
     verbose: bool = False,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    response_format: Optional[str] = None
+    response_format: Optional[str] = None,
+    stream: Optional[bool] = None
 
 ) -> Union[str, ChatResponse]:
     """
@@ -23,6 +24,8 @@ def chat(
                  If True, returns full response (ChatResponse).
         temperature: Optional temperature override for this call
         max_tokens: Optional max_tokens override for this call
+        response_format: Optional response format ("json" or "default")
+        stream: Optional stream override (True for streaming responses)
 
     Returns:
         str if verbose=False, ChatResponse if verbose=True
@@ -32,9 +35,17 @@ def chat(
     """
     self._authenticate()
     url = self.request_builder.build_chat_url(self.config)
-    request = self.request_builder.build_chat_request(messages, self.config, temperature, max_tokens, response_format)
-    response = self.request_sender.send_chat_request(url, request, self.session, self.config)
+    request = self.request_builder.build_chat_request(
+        messages, self.config, temperature, max_tokens, response_format, stream
+    )
+    
+    headers = self.request_builder.build_headers(self.token, self.config.api_key)
+
+    response = self.request_sender.send_chat_request(
+        url, request, self.session, self.config, headers=headers
+    )
 
     if verbose:
         return response
-    return self.response_handler.extract_message_content(response)
+    
+    return response.choices[0].message.content

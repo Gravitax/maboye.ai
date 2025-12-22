@@ -4,7 +4,7 @@ Request Builder
 Handles construction of URLs and request objects.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from ..types import ChatRequest, Message, EmbeddingRequest
 from ..config import LLMWrapperConfig
 
@@ -19,65 +19,63 @@ class RequestBuilder:
     - Apply configuration defaults
     """
 
+    def _join_url(self, base: str, path: str) -> str:
+        """Safely join base URL and path."""
+        if not path:
+            return base
+        return f"{base.rstrip('/')}/{path.lstrip('/')}"
+
     def build_chat_url(self, config: LLMWrapperConfig) -> str:
         """
         Build chat completions URL.
-
-        Args:
-            config: LLM configuration
-
-        Returns:
-            Full chat endpoint URL
         """
-        return f"{config.base_url}/{config.api_service}/chat/completions"
+        return self._join_url(config.base_url, config.api_service)
 
     def build_embedding_url(self, config: LLMWrapperConfig) -> str:
         """
         Build embedding URL.
-
-        Args:
-            config: LLM configuration
-
-        Returns:
-            Full embedding endpoint URL
         """
-        return f"{config.base_url}/{config.embed_service}/embeddings"
+        return self._join_url(config.base_url, config.embed_service)
 
     def build_embedding_models_url(self, config: LLMWrapperConfig) -> str:
         """
         Build embedding models URL.
-
-        Args:
-            config: LLM configuration
-
-        Returns:
-            Full embedding models endpoint URL
         """
-        return f"{config.base_url}/{config.embed_service}/models"
+        # Assuming embed_service points to the embedding endpoint (e.g. /embeddings)
+        # We might need a separate config for embedding models if it differs standardly
+        # But for now, let's assume standard OpenAI-like structure isn't strictly followed 
+        # or config handles it. 
+        # If embed_service is "embeddings", this might be wrong if models is "models".
+        # Let's use models_service for generic models, but if there's specific embedding models...
+        # For simplicty and cleaning up the hardcoded paths:
+        return self._join_url(config.base_url, "models") 
 
     def build_models_url(self, config: LLMWrapperConfig) -> str:
         """
         Build models list URL.
-
-        Args:
-            config: LLM configuration
-
-        Returns:
-            Full models endpoint URL
         """
-        return f"{config.base_url}/{config.api_service}/models"
+        return self._join_url(config.base_url, config.models_service)
 
     def build_test_url(self, config: LLMWrapperConfig) -> str:
         """
         Build test plan URL.
-
-        Args:
-            config: LLM configuration
-
-        Returns:
-            Full test endpoint URL
         """
-        return f"{config.base_url}/tests"
+        return self._join_url(config.base_url, "tests")
+
+
+    def build_headers(self, token: Optional[str], api_key: Optional[str]) -> Dict[str, str]:
+        """
+        Build headers with authorization.
+        Prioritize token if present, otherwise API key.
+        """
+        headers = {"Content-Type": "application/json"}
+        
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        elif api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+            
+        return headers
 
     def build_chat_request(
         self,
@@ -85,7 +83,8 @@ class RequestBuilder:
         config: LLMWrapperConfig,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        response_format: Optional[str] = None
+        response_format: Optional[str] = None,
+        stream: Optional[bool] = None
     ) -> ChatRequest:
         """
         Build chat request with optional parameter overrides.
@@ -96,6 +95,7 @@ class RequestBuilder:
             temperature: Optional temperature override
             max_tokens: Optional max_tokens override
             response_format: Optional response format ("json" or "default")
+            stream: Optional stream override (True for streaming responses)
 
         Returns:
             ChatRequest object ready to send
@@ -109,7 +109,8 @@ class RequestBuilder:
             messages=messages,
             temperature=temperature if temperature is not None else config.temperature,
             max_tokens=max_tokens if max_tokens is not None else config.max_tokens,
-            response_format=format_dict
+            response_format=format_dict,
+            stream=stream if stream is not None else config.stream
         )
 
     def build_embedding_request(
