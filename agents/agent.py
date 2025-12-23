@@ -15,6 +15,7 @@ from core.services.context_manager import ContextManager
 from agents.task_execution import TaskExecution
 from agents.types import AgentOutput
 from tools.tool_ids import ToolId
+from core.prompt_builder import PromptBuilder, PromptRole
 
 
 class Agent:
@@ -52,6 +53,9 @@ class Agent:
         # Context manager for conversation history
         self._context_manager = ContextManager(memory_manager._memory_repository)
 
+        # Prompt builder for constructing prompts
+        self._prompt_builder = PromptBuilder()
+
         # Task execution coordinator (callable for single command execution)
         self._task_execution = TaskExecution(
             llm=llm,
@@ -66,6 +70,7 @@ class Agent:
         Args:
             task: task description
             system_prompt: Additional system prompt (optional)
+            user_prompt: Additional user prompt (optional)
 
         Returns:
             AgentOutput with final result
@@ -73,14 +78,16 @@ class Agent:
         max_iterations = self._capabilities.max_reasoning_turns
         iteration = 0
 
+        # Clear previous prompts
+        self._prompt_builder.clear_prompts()
+
         # Build system prompt
-        if len(system_prompt) > 0:
-            system_prompt = self._capabilities.system_prompt + '\n' + system_prompt
-        else:
-            system_prompt = self._capabilities.system_prompt
-        # Build user prompt
-        if len(user_prompt) > 0: user_prompt = '\n' + user_prompt
-        user_prompt = task + user_prompt
+        self._prompt_builder.add_line(PromptRole.SYSTEM, self._capabilities.system_prompt)
+        if len(system_prompt) > 0: self._prompt_builder.add_line(PromptRole.SYSTEM, system_prompt)
+
+        # Build initial user prompt with task and context
+        self._prompt_builder.add_line(PromptRole.USER, task)
+        if len(user_prompt) > 0: self._prompt_builder.add_line(PromptRole.USER, user_prompt)
 
         # Clear agent memory
         self._memory_manager.clear_agent_memory(self._identity.agent_id)
@@ -104,25 +111,18 @@ class Agent:
             # Execute single command
             result = self._task_execution(
                 agent=self,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt
+                system_prompt=self._prompt_builder.get_prompt(PromptRole.SYSTEM),
+                user_prompt=self._prompt_builder.get_prompt(PromptRole.USER)
             )
 
-            result_str = f"command: {result.cmd}\narguments: {result.args}\noutput: {result.response}\nsuccess: {result.success}"
+            result_str = f"\ncommand: {result.cmd}\narguments: {result.args}\noutput: {result.response}\nsuccess: {result.success}"
             logger.agent("AGENT", "output", result_str)
 
-            # On prépare le contenu pour la mémoire en retirant les instructions de vérification
-            # qui ne servent qu'au LLM pour l'étape suivante, mais polluent l'historique.
-            memory_content = user_prompt
-            split_marker = "VERIFICATION REQUIRED"
-            # On ne garde que la partie avant le marqueur (ex: "Command 'ls' executed successfully.")
-            memory_content = user_prompt.split(split_marker)[0].strip()
-
-            # Save both agent input (cleaned) and output in memory
+            # Save both agent input and output in memory
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="user",
-                content=memory_content
+                content=self._prompt_builder.get_prompt(PromptRole.USER)
             )
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
@@ -130,22 +130,17 @@ class Agent:
                 content=result_str
             )
 
+            self._prompt_builder.clear_prompt(PromptRole.USER)
             if result.cmd in [ToolId.TASK_SUCCESS.value, ToolId.TASK_ERROR.value, ToolId.TASKS_COMPLETED.value]:
                 return result
             elif not result.success:
-                # Cas d'échec : Gestion de l'Idempotence et de la Récupération
-                user_prompt = (
-                    f"Command: **{result.cmd} failed**. Analyze the failure context.\n"
-                ) + self._context_manager.get_verification_prompt() + (
-                    "**RECOVERY**: If Global Completion is not met, and it is a fixable error, execute a **Corrected Approach**.\n"
-                )
+                # Build failure continuation prompt with initial context preserved
+                self._prompt_builder.add_line(PromptRole.USER, f"\nCommand: **{result.cmd} failed**. Analyze the failure context.")
+                self._prompt_builder.add_line(PromptRole.USER, "If Global Completion is not met, and it is a fixable error, execute a **Corrected Approach**.")
             else:
-                # Cas de succès technique : Continuité ou Erreur logique
-                user_prompt = (
-                    f"Command '{result.cmd}' executed successfully.\n"
-                ) + self._context_manager.get_verification_prompt() + (
-                    "**CONTINUE**: If the USER QUERY is not yet fully complete, proceed to the next logical step.\n"
-                )
+                # Build success continuation prompt with initial context preserved
+                self._prompt_builder.add_line(PromptRole.USER, f"\nCommand '{result.cmd}' executed successfully.")
+                self._prompt_builder.add_line(PromptRole.USER, "If the CURRENT ASSIGNMENT is not yet fully complete, proceed to the next logical step.")
         # Max iterations reached
         result.error = "Max iterations reached"
         return result

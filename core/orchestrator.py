@@ -22,6 +22,7 @@ from core.services import MemoryManager, LRUCache, AgentFactory
 from core.services.tasks_manager import TasksManager
 from core.services.memory_formatter import MemoryFormatter
 from core.services.context_manager import ContextManager
+from core.prompt_builder import PromptBuilder, PromptRole, PromptId
 
 class Orchestrator:
     """
@@ -64,6 +65,8 @@ class Orchestrator:
         self._llm = LLMWrapper(self._llm_config)
         # Initialize context manager
         self._context_manager = ContextManager(self._memory_repository)
+        # Initialize prompt builder
+        self._prompt_builder = PromptBuilder()
 
         # Initialize agent factory for creating specialized agents
         self._agent_factory = AgentFactory(
@@ -163,25 +166,41 @@ class Orchestrator:
         logger.info("ORCHESTRATOR", "process_user_input", user_input)
         # Generate unique conversation ID
         conversation_id = f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
-        # Save user input in orchestrator memory
-        self._memory_manager.save_conversation_turn(
-            agent_id="orchestrator",
-            role="user",
-            content=user_input,
-            metadata={"conversation_id": conversation_id}
-        )
 
         try:
             executing = True
             self._ensure_tasks_agent_initialized()
 
-            # user_prompt = self._context_manager.format_context_as_string(
-            #     agent_id="orchestrator",
-            #     max_turns=6
-            # )
-            user_prompt = user_input            
-            system_prompt = self._context_manager.get_taskslist_system_prompt()
-            system_prompt += self._context_manager.build_system_prompt(self._tasks_agent)
+            # Clear previous prompts
+            self._prompt_builder.clear_prompts()
+
+            # get history
+            history = self._context_manager.format_context_as_string(
+                agent_id="orchestrator",
+                max_turns=100
+            )
+            # save user input in orchestrator memory
+            self._memory_manager.save_conversation_turn(
+                agent_id="orchestrator",
+                role="user",
+                content=user_input,
+                metadata={"conversation_id": conversation_id}
+            )
+
+            # build user prompt with history context
+            if len(history) > 0: self._prompt_builder.add_block(PromptRole.USER, f"\n# HISTORY\n{history}")
+            self._prompt_builder.add_block(PromptRole.USER, f"\n# USER QUERY\n{user_input}")
+
+            # build system prompt
+            taskslist_prompt = PromptBuilder.get_prompt_by_id(PromptId.TASKS_AGENT)
+            system_context = self._context_manager.get_system_context(self._tasks_agent)
+
+            self._prompt_builder.add_block(PromptRole.SYSTEM, taskslist_prompt)
+            self._prompt_builder.add_block(PromptRole.SYSTEM, system_context)
+
+            # Get constructed prompts
+            user_prompt = self._prompt_builder.get_prompt(PromptRole.USER)
+            system_prompt = self._prompt_builder.get_prompt(PromptRole.SYSTEM)
 
             while executing:
                 try:

@@ -39,6 +39,7 @@ class CLICompleter:
         self._command_provider = command_provider
         self._system_command_manager = system_command_manager
         self._matches: List[str] = []
+        self._path_cache: Optional[List[str]] = None
 
     def complete(self, text: str, state: int) -> Optional[str]:
         """
@@ -111,17 +112,22 @@ class CLICompleter:
             if builtin.startswith(text):
                 matches.add(builtin)
         
-        # PATH binaries
-        path_dirs = os.environ.get('PATH', '').split(os.pathsep)
-        for p_dir in path_dirs:
-            if not os.path.isdir(p_dir): continue
-            try:
-                # Basic optimization: only list if directory is readable
-                for entry in os.listdir(p_dir):
-                    if entry.startswith(text):
-                        matches.add(entry)
-            except OSError:
-                continue
+        # Initialize cache if needed
+        if self._path_cache is None:
+            self._path_cache = []
+            path_dirs = os.environ.get('PATH', '').split(os.pathsep)
+            for p_dir in path_dirs:
+                if not os.path.isdir(p_dir): continue
+                try:
+                    for entry in os.listdir(p_dir):
+                        self._path_cache.append(entry)
+                except OSError:
+                    continue
+        
+        # Filter from cache
+        for entry in self._path_cache:
+            if entry.startswith(text):
+                matches.add(entry)
                 
         return sorted(list(matches))
 

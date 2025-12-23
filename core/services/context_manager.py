@@ -20,15 +20,6 @@ from tools.tool_ids import ToolId
 class ContextManager:
     """
     Manages conversation context for orchestrator and agents.
-
-    Responsibilities:
-    - Retrieve conversation history by agent_id
-    - Format messages for LLM consumption
-    - Build context with system prompts
-
-    This manager serves:
-    - Orchestrator: retrieves history with agent_id="orchestrator"
-    - Agents: retrieves history with their own agent_id
     """
 
     def __init__(self, memory_repository: MemoryRepository):
@@ -50,7 +41,6 @@ class ContextManager:
         Returns:
             Formatted time string (hh:mm:ss)
         """
-        return "-"
         try:
             dt = datetime.fromisoformat(timestamp_str)
             return dt.strftime("%H:%M:%S")
@@ -83,6 +73,12 @@ class ContextManager:
             max_turns=max_turns
         )
         return turns
+    
+    def get_system_context(self, agent):
+        return f"""{self._get_available_tools(agent)}\n
+{self._get_environment_variables()}\n
+{self._get_project_structure()}
+        """
 
     def build_messages(
         self,
@@ -174,7 +170,7 @@ class ContextManager:
         """
         return self._memory_repository.get_last_turn(agent_id)
     
-    def get_available_tools_prompt(self, agent) -> str:
+    def _get_available_tools(self, agent) -> str:
         """
         Génère une description riche des outils incluant types et descriptions des arguments.
         """
@@ -194,7 +190,7 @@ class ContextManager:
             return "No tools available."
 
         tool_registry = agent._tool_registry
-        lines = ["## AVAILABLE TOOLS"]
+        lines = []
 
         for tool_name in tools_to_display:
             tool_info = tool_registry.get_tool_info(tool_name)
@@ -232,90 +228,14 @@ class ContextManager:
                 elif tool_name == ToolId.TASK_ERROR.value:
                     lines.append("NOTE: Use this tool **IMMEDIATELY** when an unrecoverable **ERROR PREVENTS TASK COMPLETION**.")
 
-        return "\n".join(lines)
-    
-    def get_taskslist_system_prompt(self) -> str:
-        return """
-You are a Senior Software Architect.
-Your role is to break down the user's request into a logical sequence of actionable steps (tasks) for a Developer Agent.
+        return "## AVAILABLE TOOLS\n" + "\n".join(lines)
 
-OUTPUT RULES:
-1. Respond ONLY in strict JSON format.
-2. NO conversational text before or after the JSON.
-3. Ensure all strings are properly escaped for JSON.
-
-JSON SCHEMA:
-{
-  "analyse": "Brief technical analysis of the request and context.",
-  "tasks": [
-    {
-      "step": "Clear and specific action to perform.",
-      "expected_outcome": "Concrete condition or result that must be met to consider this step complete and enable the next."
-    },
-    {
-      "step": "Next action...",
-      "expected_outcome": "Result..."
-    }
-  ]
-}
-
-TASK GUIDELINES:
-- ATOMICITY: Each task should be a clear, achievable objective (e.g., "Read src/main.py to understand the logic" instead of "Understand the code").
-- SEQUENCE: Order tasks logically (Investigation -> Modification -> Verification).
-- SCOPE: Do NOT specify exact tool calls (e.g., do not say "use read_file tool"), just state the GOAL. The Developer Agent will choose the tools.
-- CONTEXT: If the user refers to specific files, mention them explicitly in the tasks.
-- OUTCOMES: The `expected_outcome` must be verifiable (e.g., \"File path is confirmed\" is better than \"Know where the file is\").
-
-SPECIAL CASES:
-- If the request is a simple greeting or pure conversation unrelated to code/system, return an EMPTY list `[]` for "tasks".
-- If the request requires knowledge retrieval (e.g., "How does auth work?"), create a task to "Inspect code to explain authentication mechanism".
-"""
-
-    def get_verification_prompt(self) -> str:
-        return f"""
-VERIFICATION REQUIRED (Check strictly in this order):\n"
-1. **GLOBAL COMPLETION (HIGHEST PRIORITY)**: Look at the output/context. If the evidence shows the **USER QUERY is FULLY ACHIEVED** (regardless of whether the specific command succeeded or failed), use **{ToolId.TASKS_COMPLETED.value}** IMMEDIATELY.
-2. **IMPLICIT SUCCESS (IDEMPOTENCY)**: If the command failed (exit code != 0) BUT the output implies the target state already exists (e.g., 'already exists', 'nothing to change', 'same source/dest'), consider the task done. Use **{ToolId.TASK_SUCCESS.value}**.
-3. **STEP SUCCESS**: If the output confirms the current task's objective is met, use **{ToolId.TASK_SUCCESS.value}**.
-4. **FATAL**: Only use **{ToolId.TASK_ERROR.value}** if the goal is blocked and strictly impossible to achieve.
-        """
-
-    def get_execution_system_prompt(self) -> str:
-        return f"""
-You are an autonomous execution agent.
-Your goal is to complete the specific task assigned, BUT your ultimate priority is the USER QUERY.
-
-EXECUTION RULES:
-1. **PRIORITY 0: GLOBAL SHORT-CIRCUIT**: 
-   Before doing anything, ask: "Is the USER QUERY already fully achieved based on the context/history?"
-   - If YES -> Use **{ToolId.TASKS_COMPLETED.value}** IMMEDIATELY. Ignore the current task.
-   - Do not perform unnecessary actions if the final goal is met.
-2. **ANALYSIS**: Analyze the current context and the specific 'Expected Outcome' of the task.
-3. **OBJECTIVE**: Your goal is the RESULT, not the ACTION. 
-   - If the task asks to "Move X", but X is already there -> Success.
-   - If the task asks to "Create Y", but Y exists -> Success.
-4. **VERIFICATION**: Compare tool outputs against the goal.
-   - Treat "Resource already exists" or "No changes made" as SUCCESS.
-5. **STOPPING CONDITION**: 
-   - Use **{ToolId.TASK_SUCCESS.value}** when the current step is done.
-   - Use **{ToolId.TASKS_COMPLETED.value}** when the User Query is done.
-6. **FORMAT**: Return ONLY the raw JSON object.
-
-JSON SCHEMA:
-{{
-  "tool_name": "exact_name_of_the_tool",
-  "arguments": {{
-    "arg_name": "value"
-  }}
-}}
-"""
-
-    def get_environment_variables_prompt(self) -> str:
+    def _get_environment_variables(self) -> str:
             """
             Génère une section listant l'OS, la version Python et les variables d'environnement sûres.
             """
 
-            lines = ["## ENVIRONMENT CONTEXT"]
+            lines = []
 
             # 1. Informations Système (OS & Python)
             os_info = f"{platform.system()} {platform.release()} ({platform.machine()})"
@@ -327,7 +247,7 @@ JSON SCHEMA:
             lines.append(f"- **CWD:** {os.getcwd()}") # Current Working Directory est crucial
 
             # 2. Variables d'environnement (Filtrées)
-            safe_env_vars = ["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"]
+            safe_env_vars = ["HOME", "LANG", "TERM", "USER", "SHELL"]
             
             env_lines = []
             for key in safe_env_vars:
@@ -342,7 +262,7 @@ JSON SCHEMA:
                 lines.append("\n### Active Environment Variables")
                 lines.extend(env_lines)
 
-            return "\n".join(lines)
+            return "## ENVIRONMENT CONTEXT\n" + "\n".join(lines)
 
     def _get_gitignore_patterns(self) -> list[str]:
             """
@@ -377,7 +297,7 @@ JSON SCHEMA:
 
             return patterns
 
-    def get_project_structure_prompt(self) -> str:
+    def _get_project_structure(self) -> str:
             # 1. Chargement des exclusions
             # Liste de sécurité (toujours ignorée)
             ALWAYS_IGNORE = {'.git', '__pycache__', '.idea', '.vscode', '.DS_Store', 'venv', '.venv', '.env'}
@@ -399,7 +319,7 @@ JSON SCHEMA:
 
             # 2. Construction de l'arbre
             MAX_DEPTH = 2
-            lines = ["## PROJECT STRUCTURE"]
+            lines = []
             lines.append(f"(Root: {os.getcwd()})")
 
             start_path = "."
@@ -428,12 +348,4 @@ JSON SCHEMA:
                     if not f.startswith('.') and not should_ignore(f):
                         lines.append(f"{subindent}{f}")
 
-            return "\n".join(lines)
-
-    def build_system_prompt(self, agent):
-        parts = [
-            self.get_available_tools_prompt(agent),
-            self.get_environment_variables_prompt(),
-            self.get_project_structure_prompt()
-        ]
-        return "\n\n".join(parts)
+            return "## PROJECT STRUCTURE\n" + "\n".join(lines)

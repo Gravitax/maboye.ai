@@ -5,6 +5,7 @@ Handles command registration, execution, and management for the CLI.
 """
 
 import sys
+import shlex
 from typing import Optional, Callable, Dict, Tuple
 
 from core.logger import logger
@@ -132,9 +133,22 @@ class CommandManager:
         if not self._is_command_input(user_input):
             return None
 
-        parts = user_input[1:].split()
+        try:
+            # Use shlex to handle quoted arguments correctly
+            parts = shlex.split(user_input[1:])
+        except ValueError as e:
+            if self._terminal:
+                self._terminal.print_message(
+                    f"Error parsing command: {e}",
+                    color=Color.RED
+                )
+            return None
+
+        if not parts:
+            return None
+            
         cmd_name = parts[0].lower()
-        args = parts[1:] if len(parts) > 1 else []
+        args = parts[1:]
 
         return (cmd_name, args)
 

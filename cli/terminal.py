@@ -6,6 +6,7 @@ Provides command-line interface with input loop and display functionality.
 
 import sys
 import os
+import re
 import readline
 import atexit
 from typing import Optional, Callable
@@ -57,7 +58,20 @@ class Terminal:
             
         colored_path = format_path_with_gradient(display_dir)
 
-        return f"{Color.BOLD}{colored_path}{Color.RESET} > "
+        full_prompt = f"{Color.BOLD}{colored_path}{Color.RESET} > "
+        return self._escape_ansi_for_readline(full_prompt)
+
+    def _escape_ansi_for_readline(self, text: str) -> str:
+        """
+        Wrap ANSI escape codes in readline non-printing markers.
+
+        Args:
+            text: String containing ANSI escape codes.
+
+        Returns:
+            String with ANSI codes wrapped in \001 and \002.
+        """
+        return re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', text)
 
     def _setup_readline(self) -> None:
         """Setup readline for history, navigation, and completion."""

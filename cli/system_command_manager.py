@@ -34,28 +34,31 @@ class SystemCommandManager:
         if not user_input or not user_input.strip():
             return False
             
+        cmd = None
         try:
             # Use shlex to handle quotes correctly
             parts = shlex.split(user_input)
-            if not parts:
-                return False
-                
-            cmd = parts[0]
-            
-            # Check builtins
-            if cmd in self._builtins:
-                return True
-                
-            # Check binaries in PATH
-            # We strictly check if the executable exists
-            if shutil.which(cmd) is not None:
-                return True
-                
-            return False
-            
+            if parts:
+                cmd = parts[0]
         except ValueError:
-            # Malformed input (unclosed quotes etc)
+            # Malformed input (e.g. unclosed quotes). 
+            # Fallback to simple split to check the first token.
+            parts = user_input.split()
+            if parts:
+                cmd = parts[0]
+        
+        if not cmd:
             return False
+            
+        # Check builtins
+        if cmd in self._builtins:
+            return True
+            
+        # Check binaries in PATH
+        if shutil.which(cmd) is not None:
+            return True
+            
+        return False
 
     def execute(self, user_input: str) -> bool:
         """
@@ -67,62 +70,75 @@ class SystemCommandManager:
         Returns:
             True if command was executed (even if it failed with exit code != 0).
         """
+        # specialized handling for builtins that need parsing
         try:
             parts = shlex.split(user_input)
-            cmd = parts[0]
+            cmd = parts[0] if parts else ""
             args = parts[1:]
-
+            
             if cmd == 'cd':
                 self._execute_cd(args)
+                return True
             elif cmd == 'clear':
                 os.system('clear')
-            else:
-                self._execute_external(user_input)
+                return True
                 
-            return True
-            
+        except ValueError:
+            # parsing failed, but it might be a complex shell command
+            # let _execute_external handle it (it uses raw input)
+            pass
         except Exception as e:
-            _print_formatted_message(f"Error executing system command '{user_input}': {e}", color=Color.RED)
+            _print_formatted_message(f"Error preparing command: {e}", color=Color.RED)
             return False
+
+        # If not a handled builtin, pass raw input to shell
+        self._execute_external(user_input)
+        return True
 
     def _execute_cd(self, args: List[str]) -> None:
         """Handle cd command."""
         try:
-            path = args[0] if args else os.path.expanduser("~")
-            path = os.path.expanduser(path)
+            target_path = args[0] if args else os.path.expanduser("~")
             
-            # Store old PWD
-            old_pwd = os.getcwd()
+            # Handle 'cd -'
+            if target_path == "-":
+                old_pwd = os.environ.get("OLDPWD")
+                if not old_pwd:
+                    _print_formatted_message("cd: OLDPWD not set", color=Color.RED)
+                    return
+                target_path = old_pwd
+                # Print the directory we are switching to, standard 'cd -' behavior
+                print(target_path)
+
+            target_path = os.path.expanduser(target_path)
+            
+            # Store current PWD as the new OLDPWD before changing
+            current_pwd = os.getcwd()
             
             # Change directory
-            os.chdir(path)
-            new_pwd = os.getcwd()
+            os.chdir(target_path)
             
             # Update environment variables
-            os.environ["OLDPWD"] = old_pwd
-            os.environ["PWD"] = new_pwd
+            os.environ["OLDPWD"] = current_pwd
+            os.environ["PWD"] = os.getcwd()
             
-            # Print new directory for feedback
-            _print_formatted_message(f"cwd: {new_pwd}", color=Color.BLUE, style=Color.BOLD)
         except FileNotFoundError:
             _print_formatted_message(f"cd: no such file or directory: {args[0] if args else ''}", color=Color.RED)
         except Exception as e:
             _print_formatted_message(f"cd: error: {e}", color=Color.RED)
 
     def _execute_external(self, user_input: str) -> None:
-        """Execute external binary using system shell."""
+        """
+        Execute external binary using system shell.
+        
+        Handles complex commands including pipes and redirects by passing
+        the full string to the shell.
+        """
         try:
-            # Inject --color=auto for ls if not present
-            stripped = user_input.strip()
-            # Simple check to avoid parsing args again, assumes 'ls' is the command as detected by execute()
-            if stripped == 'ls' or stripped.startswith('ls '):
-                if '--color' not in stripped:
-                    # Replace first occurrence of ls with ls --color=auto
-                    user_input = 'ls --color=auto' + user_input[2:]
-
-            # Run with shell=True to support env vars ($PATH), globs (*.py), pipes, etc.
             # Use user's SHELL or default to /bin/bash for consistency
             shell_exec = os.environ.get("SHELL", "/bin/bash")
+            
+            # Run with shell=True to support env vars ($PATH), globs (*.py), pipes, etc.
             subprocess.run(user_input, shell=True, executable=shell_exec)
             
         except KeyboardInterrupt:
