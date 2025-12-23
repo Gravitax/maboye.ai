@@ -6,16 +6,42 @@ Provides command-line interface with input loop and display functionality.
 
 import sys
 import os
-import re
-import readline
 import atexit
-from typing import Optional, Callable
+from typing import Optional, Callable, Iterable
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.document import Document
+from prompt_toolkit.output import ColorDepth
+from prompt_toolkit.key_binding import KeyBindings
 
 from core.logger import logger
 from cli.cli_utils import Color, _print_formatted_message, format_path_with_gradient
 from cli.command_manager import CommandManager
 from cli.completer import CLICompleter
 from cli.system_command_manager import SystemCommandManager
+
+
+class MaboyeCompleter(Completer):
+    """
+    Adapter to connect CLICompleter with prompt_toolkit.
+    """
+    def __init__(self, cli_completer: CLICompleter):
+        self._cli_completer = cli_completer
+
+    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:
+        """
+        Get completions for the current document.
+        """
+        text = document.text
+        word_before_cursor = document.get_word_before_cursor(WORD=True) # WORD=True for broader word definition including /
+        
+        matches = self._cli_completer.get_matches(text, word_before_cursor)
+        
+        for match in matches:
+            yield Completion(match, start_position=-len(word_before_cursor))
 
 
 class Terminal:
@@ -40,7 +66,45 @@ class Terminal:
         self._orchestrator = orchestrator
         self._command_manager = CommandManager(orchestrator=orchestrator, terminal=self)
         self._system_command_manager = SystemCommandManager()
-        self._setup_readline()
+        
+        # Setup key bindings
+        self._bindings = KeyBindings()
+        
+        @self._bindings.add('c-c')
+        def _(event):
+            "Pressing Ctrl-C will exit the application if buffer is empty, else clear buffer."
+            buff = event.current_buffer
+            if buff.text:
+                buff.reset()
+            else:
+                event.app.exit(exception=KeyboardInterrupt, style='class:aborting')
+
+        @self._bindings.add('c-j')
+        def _(event):
+            "Insert a newline."
+            event.current_buffer.insert_text('\n')
+
+        @self._bindings.add('enter')
+        def _(event):
+            "Accept input."
+            event.current_buffer.validate_and_handle()
+
+        # Setup prompt_toolkit session
+        histfile = os.path.join(os.path.expanduser("~"), ".maboye_ai_history")
+        self._completer = CLICompleter(
+            self._command_manager.get_all_commands,
+            self._system_command_manager
+        )
+        self._pt_completer = MaboyeCompleter(self._completer)
+        
+        self._session = PromptSession(
+            history=FileHistory(histfile),
+            completer=self._pt_completer,
+            complete_while_typing=False, # Less distracting, matches readline behavior somewhat
+            color_depth=ColorDepth.DEPTH_24_BIT, # Force 24-bit colors (True Color)
+            key_bindings=self._bindings,
+            multiline=True # Enable multi-line input
+        )
 
     @property
     def prompt(self) -> str:
@@ -58,52 +122,8 @@ class Terminal:
             
         colored_path = format_path_with_gradient(display_dir)
 
-        full_prompt = f"{Color.BOLD}{colored_path}{Color.RESET} > "
-        return self._escape_ansi_for_readline(full_prompt)
-
-    def _escape_ansi_for_readline(self, text: str) -> str:
-        """
-        Wrap ANSI escape codes in readline non-printing markers.
-
-        Args:
-            text: String containing ANSI escape codes.
-
-        Returns:
-            String with ANSI codes wrapped in \001 and \002.
-        """
-        return re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', text)
-
-    def _setup_readline(self) -> None:
-        """Setup readline for history, navigation, and completion."""
-        histfile = os.path.join(os.path.expanduser("~"), ".maboye_ai_history")
-        try:
-            readline.read_history_file(histfile)
-            readline.set_history_length(1000)
-        except FileNotFoundError:
-            pass
-        
-        # Register cleanup to delete history on exit
-        atexit.register(self._cleanup_history)
-
-        # Setup completion
-        self._completer = CLICompleter(
-            self._command_manager.get_all_commands,
-            self._system_command_manager
-        )
-        readline.set_completer(self._completer.complete)
-        # Ensure / is treated as part of the word
-        readline.set_completer_delims(' \t\n')
-        # Enable cycling through options with Tab
-        readline.parse_and_bind("tab: menu-complete")
-
-    def _cleanup_history(self) -> None:
-        """Clean up history file on exit."""
-        histfile = os.path.join(os.path.expanduser("~"), ".maboye_ai_history")
-        if os.path.exists(histfile):
-            try:
-                os.remove(histfile)
-            except OSError:
-                pass
+        # Return raw ANSI string, prompt_toolkit handles it with ANSI() wrapper
+        return f"{Color.BOLD}{colored_path}{Color.RESET} > "
 
     def print_message(
         self,
@@ -214,25 +234,19 @@ class Terminal:
 
     def read_input(self) -> Optional[str]:
         """
-        Read line from standard input.
+        Read line from standard input using prompt_toolkit.
 
         Returns:
             Input line or None on EOF/error.
         """
         try:
-            return input(self.prompt)
+            return self._session.prompt(ANSI(self.prompt))
         except EOFError:
             return self._handle_eof()
         except KeyboardInterrupt:
-            # Check if there is text in the buffer
-            if readline.get_line_buffer().strip():
-                # Text present: Cancel input (clear line behavior)
-                # Print newline to simulate cancellation visually
-                print("")
-                return ""
-            else:
-                # No text: Exit program
-                return self._handle_keyboard_interrupt()
+            # Custom key bindings raise this only on empty buffer -> Exit
+            self.print_message("\nExiting...", color=Color.YELLOW)
+            sys.exit(0)
 
     def _handle_eof(self) -> None:
         """
@@ -242,17 +256,6 @@ class Terminal:
             None to signal end of input.
         """
         return None
-
-    def _handle_keyboard_interrupt(self) -> None:
-        """
-        Handle keyboard interrupt signal.
-        Closes the program immediately.
-
-        Returns:
-            None (exits).
-        """
-        self.print_message("\nExiting...", color=Color.YELLOW)
-        sys.exit(0)
 
     def run(self, input_handler: Optional[Callable[[str], None]] = None) -> None:
         """
@@ -280,7 +283,12 @@ class Terminal:
             user_input = self.read_input()
 
             if user_input is None:
+                # EOF reached
                 break
+                
+            if not user_input:
+                # Empty input (e.g. Enter or Ctrl+C handled via bindings)
+                continue
 
             processed = self.process_input(user_input)
 

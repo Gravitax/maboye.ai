@@ -5,6 +5,7 @@ Agent with iterative single-command execution workflow.
 Uses TaskExecution to execute one command at a time.
 """
 
+import json
 from core.logger import logger
 from llm_wrapper import LLMWrapper
 from core.tool_scheduler import ToolScheduler
@@ -115,8 +116,14 @@ class Agent:
                 user_prompt=self._prompt_builder.get_prompt(PromptRole.USER)
             )
 
-            result_str = f"\ncommand: {result.cmd}\narguments: {result.args}\noutput: {result.response}\nsuccess: {result.success}"
-            logger.agent("AGENT", "output", result_str)
+            # Save in memory with JSON format to avoid confusion
+            memory_entry = json.dumps({
+                "tool_name": result.cmd,
+                "arguments": result.args,
+                "result": result.response,
+                "success": result.success
+            }, indent=2, ensure_ascii=False)
+            logger.agent("AGENT", "output", memory_entry)
 
             # Save both agent input and output in memory
             self._memory_manager.save_conversation_turn(
@@ -127,20 +134,31 @@ class Agent:
             self._memory_manager.save_conversation_turn(
                 agent_id=self._identity.agent_id,
                 role="assistant",
-                content=result_str
+                content=memory_entry
             )
 
             self._prompt_builder.clear_prompt(PromptRole.USER)
+            self._prompt_builder.add_line(PromptRole.USER, 'IMPORTANT: Respond with valid JSON only: {"tool_name": "...", "arguments": {...}}\n')
             if result.cmd in [ToolId.TASK_SUCCESS.value, ToolId.TASK_ERROR.value, ToolId.TASKS_COMPLETED.value]:
                 return result
             elif not result.success:
+                # Check if user explicitly denied the action
+                if result.error == "user_denied":
+                    # User refused action - stop immediately, don't retry
+                    return AgentOutput(
+                        response=f"Task aborted: User denied execution of '{result.cmd}'. {result.response}",
+                        success=False,
+                        error="user_denied",
+                        cmd=ToolId.TASK_ERROR.value,
+                        agent_id=self._identity.agent_id
+                    )
                 # Build failure continuation prompt with initial context preserved
                 self._prompt_builder.add_line(PromptRole.USER, f"\nCommand: **{result.cmd} failed**. Analyze the failure context.")
                 self._prompt_builder.add_line(PromptRole.USER, "If Global Completion is not met, and it is a fixable error, execute a **Corrected Approach**.")
             else:
                 # Build success continuation prompt with initial context preserved
                 self._prompt_builder.add_line(PromptRole.USER, f"\nCommand '{result.cmd}' executed successfully.")
-                self._prompt_builder.add_line(PromptRole.USER, "If the CURRENT ASSIGNMENT is not yet fully complete, proceed to the next logical step.")
+                self._prompt_builder.add_line(PromptRole.USER, "If the **CURRENT ASSIGNMENT** is not yet fully complete, proceed to the next logical step.")
         # Max iterations reached
         result.error = "Max iterations reached"
         return result

@@ -135,6 +135,15 @@ class SystemCommandManager:
         the full string to the shell.
         """
         try:
+            # Inject --color=auto for ls to restore colors (aliases are not loaded in non-interactive shell)
+            # --color=auto is safe for pipes as it disables color if stdout is not a TTY
+            stripped = user_input.strip()
+            if (stripped == 'ls' or stripped.startswith('ls ')) and '--color' not in stripped:
+                if stripped == 'ls':
+                    user_input = 'ls --color=auto'
+                else:
+                    user_input = 'ls --color=auto ' + stripped[3:]
+
             # Use user's SHELL or default to /bin/bash for consistency
             shell_exec = os.environ.get("SHELL", "/bin/bash")
             

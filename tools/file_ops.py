@@ -284,54 +284,66 @@ def copy_file(source: str, destination: str) -> bool:
         raise FileOperationError(f"Failed to copy file: {e}")
 
 
-def move_path(src: str, dst: str) -> str:
+def move_path(src: str, dst: str) -> bool:
     """
     Move or rename a file or directory.
-    
+
     Args:
         src: Source path
         dst: Destination path
-        
+
     Returns:
-        Success or error message
+        True if moved successfully
+
+    Raises:
+        FileNotFoundError: Source does not exist
+        FileOperationError: Move operation failed
     """
     import shutil
+
+    if not os.path.exists(src):
+        raise FileNotFoundError(f"Source does not exist: {src}")
+
     try:
-        if not os.path.exists(src):
-            return f"Error: Source '{src}' does not exist."
         shutil.move(src, dst)
-        return f"Successfully moved '{src}' to '{dst}'"
+        return True
     except Exception as e:
-        return f"Error moving path: {str(e)}"
+        raise FileOperationError(f"Failed to move path: {e}")
 
 
-def delete_path(path: str, force: bool = False) -> str:
+def delete_path(path: str, force: bool = False) -> bool:
     """
     Delete a file or directory (recursively if directory).
-    
+
     Args:
         path: Path to delete
         force: Force delete (required for directories)
-        
+
     Returns:
-        Success or error message
+        True if deleted successfully
+
+    Raises:
+        FileNotFoundError: Path does not exist
+        FileOperationError: Delete operation failed or security check failed
     """
     import shutil
-    try:
-        if not os.path.exists(path):
-            return f"Error: Path '{path}' does not exist."
-        
-        # Basic security
-        if path in [".", "..", "/"]:
-            return "Error: Cannot delete root or current directory."
 
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Path does not exist: {path}")
+
+    # Basic security
+    if path in [".", "..", "/"]:
+        raise FileOperationError("Cannot delete root or current directory")
+
+    try:
         if os.path.isdir(path):
             if not force:
-                return f"Error: '{path}' is a directory. Set force=True to delete recursively."
+                raise FileOperationError(f"'{path}' is a directory. Set force=True to delete recursively")
             shutil.rmtree(path)
-            return f"Directory '{path}' deleted recursively."
         else:
             os.remove(path)
-            return f"File '{path}' deleted."
+        return True
+    except FileOperationError:
+        raise
     except Exception as e:
-        return f"Error deleting path: {str(e)}"
+        raise FileOperationError(f"Failed to delete path: {e}")

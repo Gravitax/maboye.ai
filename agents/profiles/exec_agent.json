@@ -20,7 +20,7 @@
     "execution"
   ],
   "llm_config": {
-    "temperature": 0,
+    "temperature": 0.3,
     "max_tokens": 1000,
     "timeout": 30,
     "response_format": "json"

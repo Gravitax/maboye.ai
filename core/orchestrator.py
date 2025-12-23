@@ -151,6 +151,42 @@ class Orchestrator:
                 except json.JSONDecodeError as e:
                     tasks = {}
         return tasks
+    
+    def _build_user_prompt(self, user_input: str, error_result: AgentOutput = None) -> str:
+        # clear previous prompt
+        self._prompt_builder.clear_prompt(PromptRole.USER)
+        # get history
+        history = self._context_manager.format_context_as_string(
+            agent_id="orchestrator",
+            max_turns=100
+        )
+        # build prompt
+        if len(history) > 0: self._prompt_builder.add_block(PromptRole.USER, f"\n# HISTORY\n{history}")
+        self._prompt_builder.add_block(PromptRole.USER, f"\n# USER QUERY\n{user_input}")
+        # add retry logic
+        if error_result:
+            error_context = f"""
+# PREVIOUS ATTEMPT FAILED
+The previous workflow failed with the following error:
+{error_result.response}
+
+Please analyze the error and create a new plan to accomplish the original USER QUERY:
+"{user_input}"
+"""
+            self._prompt_builder.add_block(PromptRole.USER, error_context)
+
+        return self._prompt_builder.get_prompt(PromptRole.USER)
+
+    def _build_system_prompt(self) -> str:
+        # clear previous prompt
+        self._prompt_builder.clear_prompt(PromptRole.SYSTEM)
+        # get tasks agent prompt
+        tasks_agent_prompt = PromptBuilder.get_prompt_by_id(PromptId.TASKS_AGENT)
+        # get system context
+        system_context = self._context_manager.get_system_context(self._tasks_agent)
+        # build prompt
+        self._prompt_builder.add_block(PromptRole.SYSTEM, f"{tasks_agent_prompt}\n{system_context}")
+        return self._prompt_builder.get_prompt(PromptRole.SYSTEM)
 
     def process_user_input(self, user_input: str) -> AgentOutput:
         """
@@ -169,16 +205,15 @@ class Orchestrator:
 
         try:
             executing = True
+            retry_count = 0
+            max_retries = 2
+
             self._ensure_tasks_agent_initialized()
 
-            # Clear previous prompts
-            self._prompt_builder.clear_prompts()
+            # Get constructed prompts
+            user_prompt = self._build_user_prompt(user_input)
+            system_prompt = self._build_system_prompt()
 
-            # get history
-            history = self._context_manager.format_context_as_string(
-                agent_id="orchestrator",
-                max_turns=100
-            )
             # save user input in orchestrator memory
             self._memory_manager.save_conversation_turn(
                 agent_id="orchestrator",
@@ -186,21 +221,6 @@ class Orchestrator:
                 content=user_input,
                 metadata={"conversation_id": conversation_id}
             )
-
-            # build user prompt with history context
-            if len(history) > 0: self._prompt_builder.add_block(PromptRole.USER, f"\n# HISTORY\n{history}")
-            self._prompt_builder.add_block(PromptRole.USER, f"\n# USER QUERY\n{user_input}")
-
-            # build system prompt
-            taskslist_prompt = PromptBuilder.get_prompt_by_id(PromptId.TASKS_AGENT)
-            system_context = self._context_manager.get_system_context(self._tasks_agent)
-
-            self._prompt_builder.add_block(PromptRole.SYSTEM, taskslist_prompt)
-            self._prompt_builder.add_block(PromptRole.SYSTEM, system_context)
-
-            # Get constructed prompts
-            user_prompt = self._prompt_builder.get_prompt(PromptRole.USER)
-            system_prompt = self._prompt_builder.get_prompt(PromptRole.SYSTEM)
 
             while executing:
                 try:
@@ -210,31 +230,31 @@ class Orchestrator:
                     logger.info("ORCHESTRATOR", "---------- tasks manager start")
                     result = self._tasks_manager.execute(user_prompt, tasks)
                     if result.success == False:
-                        # todo: build prompt on resultat log to loop again with error context
-                        user_prompt = ""
-                        system_prompt = ""
-                        executing = False
-                        logger.info("ORCHESTRATOR", "tasks manager failed")
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            logger.info("ORCHESTRATOR", f"tasks manager failed, retry {retry_count}/{max_retries}")
+                            # Build retry prompt with error context
+                            user_prompt = self._build_user_prompt(user_input, result)
+                            # Continue loop with new prompts
+                        else:
+                            logger.info("ORCHESTRATOR", "tasks manager failed, max retries reached")
+                            executing = False
                     else:
                         executing = False
-                    logger.info("ORCHESTRATOR", "---------- tasks manager end", { "success": result.success })
-                    self._save_orchestrator_output(result, conversation_id)
-                    return result
                 except KeyboardInterrupt:
                     logger.warning("ORCHESTRATOR", "Orchestrator loop interrupted by user (Ctrl+C).")
-                    executing = False # Stop the loop
-                    self._memory_manager.save_conversation_turn(
-                        agent_id="orchestrator",
-                        role="assistant",
-                        content="Orchestrator loop interrupted by user.",
-                        metadata={"conversation_id": conversation_id, "status": "interrupted"}
-                    )
-                    return AgentOutput(
-                        response="Orchestrator loop interrupted by user.",
+                    result = AgentOutput(
+                        response=f"Orchestrator loop interrupted by user.",
                         success=False,
-                        error="user_interrupted",
-                        cmd="interrupted"
+                        error="user_interrupted"
                     )
+                    self._save_orchestrator_output(result, conversation_id)
+                    executing = False # Stop the loop
+                    return result
+
+            logger.info("ORCHESTRATOR", "---------- tasks manager end", { "success": result.success })
+            self._save_orchestrator_output(result, conversation_id)
+            return result
 
         except Exception as e:
             result = AgentOutput(
@@ -242,7 +262,6 @@ class Orchestrator:
                 success=False,
                 error=str(e)
             )
-            # Save error output
             self._save_orchestrator_output(result, conversation_id)
             return result
 

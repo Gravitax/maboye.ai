@@ -7,19 +7,17 @@ Includes retry logic for JSON syntax errors and robust security checks.
 """
 
 import json
-import re
 from typing import Optional, Dict, Any, Callable, List, TYPE_CHECKING
 from core.logger import logger
 from core.tool_scheduler import ToolScheduler
 from core.services.context_manager import ContextManager
 from agents.types import AgentOutput, ToolCall
 from tools.tool_ids import ToolId
+from cli.confirmation_handler import confirm_dangerous_command
+from agents.execution import parse_tool_command, format_tool_result, is_dangerous_command
 
 if TYPE_CHECKING:
     from agents.agent import Agent
-
-# Regex pour détecter les commandes destructrices dans les arguments bash
-DANGEROUS_BASH_REGEX = re.compile(r'(^|[;\s|&])(rm|del|rmdir|mv|rename)(\s+|$)', re.IGNORECASE)
 
 class TaskExecution:
     """
@@ -37,12 +35,12 @@ class TaskExecution:
         """
         Args:
             interaction_handler: Callback (msg, args) -> bool pour confirmer les actions dangereuses.
-                                 Si None, utilise input() console par défaut.
+                                 Si None, utilise le gestionnaire de confirmation interactif.
         """
         self._llm = llm
         self._tool_scheduler = tool_scheduler
         self._context_manager = context_manager
-        self._interaction_handler = interaction_handler or self._default_console_confirmation
+        self._interaction_handler = interaction_handler or confirm_dangerous_command
 
     def __call__(
         self,
@@ -96,17 +94,17 @@ class TaskExecution:
             content = message.content
             
             # Parsing de la commande
-            tool_command = self._parse_tool_command(content)
+            tool_command = parse_tool_command(content)
 
             # Cas : JSON invalide ou introuvable
             if not tool_command:
                 # Si c'est juste du texte sans intention d'outil, on retourne le texte
                 # Mais si le modèle *essayait* de faire du JSON (détecté par accolades), on retry
                 if "{" in content and "}" in content:
-                    error_msg = "Invalid JSON format. Return ONLY raw JSON."
+                    error_msg = """Invalid JSON format. Use ONLY double quotes (") not single quotes ('). Return strict JSON: {"tool_name": "...", "arguments": {...}}"""
                     logger.warning("AGENT", "LLM_RAW_OUTPUT_FAILED_PARSE", {"raw_output": content})
                     logger.warning("AGENT", "json_parse_error", "Retrying...")
-                    
+
                     # On ajoute l'erreur au contexte temporaire pour que le LLM se corrige
                     messages.append({"role": "assistant", "content": content})
                     messages.append({"role": "user", "content": f"System Error: {error_msg}"})
@@ -136,7 +134,7 @@ class TaskExecution:
                 )
 
             # Vérification de Sécurité
-            if self._is_dangerous_command(tool_name, arguments):
+            if is_dangerous_command(tool_name, arguments):
                 confirmed = self._interaction_handler(tool_name, arguments)
                 if not confirmed:
                     return AgentOutput(
@@ -198,8 +196,8 @@ class TaskExecution:
                         log=f"Agent declared task error: {error_msg}"
                     )
 
-                # Conversion du résultat en string pour l'AgentOutput si c'est un dict
-                response_str = str(result_data) if not isinstance(result_data, str) else result_data
+                # Formatage intelligent du résultat pour l'AgentOutput
+                response_str = format_tool_result(tool_name, result_data, arguments)
 
                 return AgentOutput(
                     response=response_str,
@@ -225,64 +223,3 @@ class TaskExecution:
             error="max_retries_exceeded",
             cmd="json_error"
         )
-
-    def _parse_tool_command(self, content: str) -> Optional[Dict[str, Any]]:
-        """Tente d'extraire le JSON de manière agressive."""
-        try:
-            # Nettoyage des balises markdown
-            cleaned = re.sub(r'^```(json)?|```$', '', content.strip(), flags=re.MULTILINE).strip()
-            
-            # Recherche du premier '{' et dernier '}'
-            start = cleaned.find('{')
-            end = cleaned.rfind('}')
-            
-            if start != -1 and end != -1:
-                json_str = cleaned[start:end+1]
-                data = json.loads(json_str)
-                
-                # Gestion des structures imbriquées courantes
-                if "tool_name" in data:
-                    return data
-                elif "function" in data and "name" in data["function"]:
-                    # Support format OpenAI functions
-                    return {
-                        "tool_name": data["function"]["name"],
-                        "arguments": json.loads(data["function"]["arguments"]) if isinstance(data["function"]["arguments"], str) else data["function"]["arguments"]
-                    }
-                
-                # Si c'est un JSON valide mais pas une commande d'outil explicite
-                # (ex: le plan du TasksAgent), on le retourne tel quel.
-                # L'appelant décidera si c'est valide ou non.
-                return data
-
-            return None
-        except Exception:
-            return None
-
-    def _is_dangerous_command(self, tool_name: str, arguments: Dict[str, Any]) -> bool:
-        """Vérifie la dangerosité via ToolId et Regex."""
-        # 1. Vérification via la liste centralisée des outils dangereux
-        dangerous_tools = ToolId.dangerous_tools()
-        
-        if tool_name in dangerous_tools:
-            # Cas spécial Bash: on analyse la commande interne
-            if tool_name == ToolId.EXECUTE_COMMAND.value or tool_name == "bash": # Support legacy alias
-                cmd = arguments.get("command", "")
-                if DANGEROUS_BASH_REGEX.search(cmd):
-                    logger.warning("SECURITY", "Dangerous Bash Pattern", cmd)
-                    return True
-                # Si c'est juste "ls" ou "echo", on peut considérer safe,
-                # mais par défaut EXECUTE_COMMAND est classé dangereux. 
-                # On retourne True pour forcer la confirmation sauf whitelist explicite (optionnel)
-                return True
-            
-            return True
-            
-        return False
-
-    def _default_console_confirmation(self, tool_name: str, arguments: Dict) -> bool:
-        """Fallback pour utilisation console."""
-        print(f"\n⚠️  CONFIRMATION REQUISE : {tool_name}")
-        print(json.dumps(arguments, indent=2))
-        res = input("Exécuter ? (y/n): ").strip().lower()
-        return res in ['y', 'yes']

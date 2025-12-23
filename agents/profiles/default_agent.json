@@ -4,7 +4,7 @@
   "authorized_tools": [],
   "system_prompt": "You are a helpful AI assistant. Respond naturally to user queries.",
   "max_reasoning_turns": 1,
-  "max_memory_turns": 4,
+  "max_memory_turns": 0,
   "specialization_tags": [
     "general",
     "conversation",

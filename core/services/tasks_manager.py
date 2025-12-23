@@ -146,23 +146,18 @@ class TasksManager:
         """
         Append the recent execution details to the rolling history.
 
-        Only stores the objective (not the full prompt with global context and outcome)
-        to keep execution history concise for orchestrator context.
+        Uses a compact format to minimize token usage:
+        - STEP number followed by result output only
+        - No verbose labels or formatting
         """
-        # Format result without duplicating execution history
-        result_summary = f"Command: {result.cmd}\nOutput: {result.response}\nSuccess: {result.success}"
-
         # Initialize header if empty
         if not current_context:
             current_context = "\n## EXECUTION HISTORY:"
 
-        # Append new block with only objective
-        new_block = f"""
-### STEP {step_num}
-- **Task**: {objective}
-- **Result**: {result_summary}
-"""
-        return current_context + "\n" + new_block
+        # Append new block with compact format: just step number and output
+        new_block = f"\n### STEP {step_num} {result.response}"
+
+        return current_context + new_block
 
     def _execute_task(self, task: str, tasks_context: str) -> Tuple[AgentOutput, Any]:
         """

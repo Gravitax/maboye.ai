@@ -5,10 +5,8 @@ Handles context-aware tab completion for the CLI.
 - Command completion (starting with /)
 - Path completion (files and directories)
 - System command completion (binaries in PATH, builtins)
-- History completion (general text)
 """
 
-import readline
 import glob
 import os
 import shlex
@@ -16,16 +14,7 @@ from typing import Callable, Dict, List, Optional, Any
 
 class CLICompleter:
     """
-    Handles completion logic for readline.
-    
-    Architecture:
-    - Main entry point: complete(text, state)
-    - Strategy dispatcher: _get_matches(text)
-    - Strategies:
-      - _get_command_matches: For inputs starting with '/'
-      - _get_path_matches: For file system paths
-      - _get_system_command_matches: For executables in PATH and builtins
-      - _get_history_matches: For other inputs
+    Handles completion logic.
     """
 
     def __init__(self, command_provider: Callable[[], Dict], system_command_manager: Any):
@@ -38,44 +27,37 @@ class CLICompleter:
         """
         self._command_provider = command_provider
         self._system_command_manager = system_command_manager
-        self._matches: List[str] = []
         self._path_cache: Optional[List[str]] = None
 
-    def complete(self, text: str, state: int) -> Optional[str]:
-        """
-        Readline completer entry point.
-        """
-        if state == 0:
-            self._matches = self._get_matches(text)
-        
-        if state < len(self._matches):
-            return self._matches[state]
-        return None
-
-    def _get_matches(self, text: str) -> List[str]:
+    def get_matches(self, document_text: str, word_before_cursor: str) -> List[str]:
         """
         Dispatch logic to determine which completion strategy to use.
-        """
-        buffer = readline.get_line_buffer()
         
+        Args:
+            document_text: The full text of the line buffer.
+            word_before_cursor: The specific word being completed.
+        """
         try:
-            parts = shlex.split(buffer)
-        except ValueError: 
-            return []
+            parts = shlex.split(document_text)
+        except ValueError:
+            # If shlex fails (e.g. unclosed quote), fall back to simple split
+            parts = document_text.split()
+            if not parts:
+                parts = []
         
         is_command_token = False
-        if (len(parts) == 1 and parts[0].startswith("/")) or (not parts and text.startswith("/")):
+        # Check if we are completing a command (first token starts with /)
+        if (len(parts) <= 1 and document_text.lstrip().startswith("/")):
             is_command_token = True
             
         if is_command_token:
-            return self._get_command_matches(text)
+            return self._get_command_matches(word_before_cursor)
             
-        if text: 
-            path_matches = self._get_path_matches(text)
-            system_matches = self._get_system_command_matches(text)
-            history_matches = self._get_history_matches(text)
-            return sorted(list(set(path_matches + system_matches + history_matches)))
-        elif not text and not is_command_token: 
+        if word_before_cursor: 
+            path_matches = self._get_path_matches(word_before_cursor)
+            system_matches = self._get_system_command_matches(word_before_cursor)
+            return sorted(list(set(path_matches + system_matches)))
+        elif not word_before_cursor and not is_command_token: 
             path_matches = self._get_path_matches("")
             system_matches = self._get_system_command_matches("")
             return sorted(list(set(path_matches + system_matches)))
@@ -85,9 +67,9 @@ class CLICompleter:
     def _get_command_matches(self, text: str) -> List[str]:
         commands = list(self._command_provider().keys())
         if not text:
-            return [f"/{cmd} " for cmd in sorted(commands)]
+            return [f"/{cmd}" for cmd in sorted(commands)]
         prefix = text[1:] if text.startswith("/") else text
-        matches = [f"/{cmd} " for cmd in commands if cmd.startswith(prefix)]
+        matches = [f"/{cmd}" for cmd in commands if cmd.startswith(prefix)]
         return sorted(matches)
 
     def _get_path_matches(self, text: str) -> List[str]:
@@ -98,7 +80,7 @@ class CLICompleter:
             results = []
             for match in matches:
                 if os.path.isdir(match):
-                    match += "/"
+                    match += os.sep
                 results.append(match)
             return results
         except Exception:
@@ -129,13 +111,4 @@ class CLICompleter:
             if entry.startswith(text):
                 matches.add(entry)
                 
-        return sorted(list(matches))
-
-    def _get_history_matches(self, text: str) -> List[str]:
-        matches = set()
-        history_len = readline.get_current_history_length()
-        for i in range(1, history_len + 1):
-            item = readline.get_history_item(i)
-            if item and item.startswith(text) and item != text:
-                matches.add(item)
         return sorted(list(matches))
